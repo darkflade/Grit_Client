@@ -1,0 +1,9 @@
+- [x] Research Project Structure and Current Implementation
+- [x] Refactor app paths and events
+- [/] Fix Type Errors and Abstract Event Transport
+	- [x] Create EventTransport abstraction
+	- [x] Update WsClient to implement EventTransport
+	- [x] Fix ApiClient errors (getMe and others)
+	- [x] Update ConnectionService to use EventTransport
+	- [x] Update Controllers with better error handling
+- [x] Verification and Testing

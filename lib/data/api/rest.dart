@@ -10,10 +10,9 @@ import '../models/room.dart';
 import '../models/chat_message.dart';
 import '../models/user.dart';
 
-
 class ApiClient {
   final Dio dio;
-  final String baseUrl = "https://vimh.evilempty.space";
+  final String baseUrl = "https://api.diogen.space";
   late final CookieJar cookieJar;
 
   ApiClient() : dio = Dio() {
@@ -22,7 +21,6 @@ class ApiClient {
     cookieJar = CookieJar();
     dio.interceptors.add(CookieManager(cookieJar));
 
-    // Add a logging interceptor for debugging
     dio.interceptors.add(LogInterceptor(
       requestBody: true,
       responseBody: true,
@@ -37,7 +35,8 @@ class ApiClient {
       "Content-Type": "application/json",
     };
   }
-  // ****** UPDATED: Auth Routes ******
+
+  // Auth
   Future<Response> login(String email, String password) async {
     return await dio.post("/api/auth/login", data: {
       "email": email,
@@ -45,9 +44,9 @@ class ApiClient {
     });
   }
 
-  Future<Response> register(String username, String email, String password) async {
+  Future<Response> register(String nickname, String email, String password) async {
     return await dio.post("/api/auth/register", data: {
-      "username": username,
+      "nickname": nickname,
       "email": email,
       "password": password,
     });
@@ -57,136 +56,152 @@ class ApiClient {
     return await dio.post("/api/auth/logout");
   }
 
-  // ****** UPDATED: User Route ******
-  Future<String?> getMyId() async {
+  // User
+  Future<User?> getMe() async {
     try {
       final res = await dio.get("/api/private/me");
       if (res.statusCode == 200 && res.data != null) {
-        // Assuming the response is {"data": {"user": {"sub": "user-id-string"}}}
-        final Map<String, dynamic> data = res.data["data"];
-        if (data.containsKey("id") && data["id"] is String) {
-          return data["id"];
+        final data = res.data["data"];
+        if (data is Map<String, dynamic>) {
+          return User.fromJson(data);
+        } else {
+          debugPrint("getMe: 'data' is not a Map: $data");
         }
       }
       return null;
     } catch (e) {
-      debugPrint("Error in getMyId: $e");
-      if (e is DioError) {
-        debugPrint("DioError response: ${e.response}");
-      }
+      debugPrint("Error in getMe: $e");
       return null;
     }
   }
-  // ****** UPDATED: Server/Room Routes ******
+
+  Future<String?> getMyId() async {
+    final user = await getMe();
+    return user?.id;
+  }
+
+  Future<User> getUserById(String userId) async {
+    final res = await dio.get("/api/users/$userId");
+    final data = res.data["data"];
+    if (data is Map<String, dynamic>) {
+      return User.fromJson(data);
+    }
+    throw Exception("Failed to parse user data for $userId");
+  }
+
+  // Servers & Rooms
   Future<List<Server>> getServers() async {
-    final res = await dio.get("/api/servers/");
-    if (res.statusCode == 200 && res.data != null) {
-      List data = res.data["data"];
-      return data.map((e) => Server.fromJson(e)).toList();
+    try {
+      final res = await dio.get("/api/servers/");
+      if (res.statusCode == 200 && res.data != null) {
+        final data = res.data["data"];
+        if (data is List) {
+          return data.map((e) => Server.fromJson(e as Map<String, dynamic>)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error in getServers: $e");
     }
     return [];
   }
 
   Future<List<Room>> getRooms(String serverId) async {
-    final res = await dio.get("/api/servers/$serverId/rooms/");
-    if (res.statusCode == 200 && res.data != null) {
-      List data = res.data["data"];
-      return data.map((e) => Room.fromJson(e)).toList();
+    try {
+      final res = await dio.get("/api/servers/$serverId/rooms/");
+      if (res.statusCode == 200 && res.data != null) {
+        final data = res.data["data"];
+        if (data is List) {
+          return data.map((e) => Room.fromJson(e as Map<String, dynamic>)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error in getRooms: $e");
     }
     return [];
   }
 
-  Future<List<ChatMessage>> getRoomMessages(String roomId) async {
-    final res = await dio.get("/api/rooms/$roomId/messages/");
-    if (res.statusCode == 200 && res.data != null) {
-      List data = res.data["data"];
-      return data.map((e) => ChatMessage.fromJson(e)).toList();
+  Future<List<ChatMessage>> getRoomMessages(String roomId, {int limit = 50, String? cursor}) async {
+    try {
+      final Map<String, dynamic> queryParameters = {"limit": limit};
+      if (cursor != null) queryParameters["cursor"] = cursor;
+
+      final res = await dio.get("/api/rooms/$roomId/messages/", queryParameters: queryParameters);
+      if (res.statusCode == 200 && res.data != null) {
+        final data = res.data["data"];
+        if (data is Map<String, dynamic> && data["messages"] is List) {
+          List messages = data["messages"];
+          return messages.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error in getRoomMessages: $e");
     }
     return [];
   }
 
-  // ****** NEW: User and Friend methods ******
-  Future<User> getUserById(String userId) async {
-    final res = await dio.get("/api/users/$userId");
-    return User.fromJson(res.data["data"]);
-  }
-
+  // Friends
   Future<List<User>> getFriends(String userId) async {
-    final res = await dio.get("/api/private/friends/$userId");
-    if (res.statusCode == 200) {
-      final data = res.data["data"];
-      return getMultipleUsersByIDs(data);
-    }
-    return [];
-  }
-
-  Future<void> deleteFriend(String friendId) async {
-    await dio.delete("/api/users/friends/$friendId");
-  }
-
-  Future<void> blockUser(String friendId) async {
-    await dio.post("/api/users/friends/$friendId/block");
-  }
-
-  Future<List<User>> getMultipleUsersByIDs(final dynamic ids) async {
-    if (ids is List) {
-      final users = <User>[];
-      for (final id in ids) {
-        final user = await getUserById(id.toString());
-        users.add(user);
+    try {
+      final res = await dio.get("/api/users/friends/$userId");
+      if (res.statusCode == 200 && res.data != null) {
+        final data = res.data["data"];
+        if (data is List) {
+          return data.map((e) => User.fromJson(e as Map<String, dynamic>)).toList();
+        }
       }
-      return users;
+    } catch (e) {
+      debugPrint("Error in getFriends: $e");
     }
     return [];
   }
 
-  Future<List<FriendRequest>> getFriendRequests() async {
-    final res = await dio.get("/api/users/friends/request/");
-    if (res.statusCode == 200) {
-      final data = res.data["data"];
-      final users = await getMultipleUsersByIDs(data);
-      final friendRequests = <FriendRequest>[];
-      for (final user in users){
-        friendRequests.add(
-          FriendRequest(
-            id: user.id,
-            fromUser: user,
-            status: "pending",
-            createdAt: DateTime.now(),
-          ),
-        );
+  Future<List<FriendRequest>> getFriendRequests({int limit = 50, String? cursor}) async {
+    try {
+      final Map<String, dynamic> queryParameters = {"limit": limit};
+      if (cursor != null) queryParameters["cursor"] = cursor;
+
+      final res = await dio.get("/api/users/friends/request/", queryParameters: queryParameters);
+      if (res.statusCode == 200 && res.data != null) {
+        final data = res.data["data"];
+        if (data is Map<String, dynamic> && data["requests"] is List) {
+          List requests = data["requests"];
+          return requests.map((e) => FriendRequest.fromJson(e as Map<String, dynamic>)).toList();
+        }
       }
-
-      return friendRequests;
+    } catch (e) {
+      debugPrint("Error in getFriendRequests: $e");
     }
     return [];
   }
-
 
   Future<void> createFriendRequest(String friendId) async {
     await dio.post("/api/users/friends/request/$friendId");
   }
 
   Future<void> acceptFriendRequest(String friendId) async {
-    try {
-      final response = await dio.post(
-        "/api/users/friends/request/$friendId/accept",
-        options: Options(responseType: ResponseType.plain), // <-- скажи Dio не парсить JSON
-      );
-      debugPrint("OK: ${response.data}");
-    } on DioException catch (e) {
-      if (e.response != null) {
-        debugPrint("Server error : ${e.response?.statusCode} - ${e.response?.data}");
-      } else {
-        debugPrint("Some shit is happened $e"); // Сюда заходит и тут херня
-      }
-    } catch (e) {
-      debugPrint("Deep shit happend $e");
-      rethrow;
-    }
+    await dio.post("/api/users/friends/request/$friendId/accept");
   }
 
   Future<void> rejectFriendRequest(String friendId) async {
     await dio.post("/api/users/friends/request/$friendId/reject");
+  }
+
+  Future<void> deleteFriend(String friendId) async {
+    await dio.delete("/api/users/friends/$friendId");
+  }
+
+  Future<List<User>> searchUsers(String query) async {
+    try {
+      final res = await dio.get("/api/users/search", queryParameters: {"q": query});
+      if (res.statusCode == 200 && res.data != null) {
+        final data = res.data["data"];
+        if (data is List) {
+          return data.map((e) => User.fromJson(e as Map<String, dynamic>)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error in searchUsers: $e");
+    }
+    return [];
   }
 }

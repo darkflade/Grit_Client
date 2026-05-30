@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart'; // For ValueNotifier
+import 'package:flutter/material.dart';
 
 import '../../data/api/rest.dart';
-import '../../data/api/websocket.dart';
 import '../../services/storage_service.dart';
+import '../../services/connection_service.dart';
 import '../../data/models/server.dart';
 import '../../data/models/room.dart';
 import '../../data/models/chat_message.dart';
@@ -12,8 +12,8 @@ import '../../data/models/user.dart';
 
 class HomeController {
   final ApiClient apiClient;
+  final ConnectionService connectionService;
   final StorageService storageService;
-  late final WsClient wsClient;
   final Function(String message) showMessageCallback;
 
   final isLoading = ValueNotifier<bool>(false);
@@ -26,36 +26,33 @@ class HomeController {
   final chatMessages = ValueNotifier<List<ChatMessage>>([]);
 
   String? _userId;
-  String? get currentUserId => _userId; // Added public getter for userId
+  String? get currentUserId => _userId;
 
-  HomeController(this.apiClient, this.storageService, this.showMessageCallback) {
-    wsClient = WsClient(apiClient: apiClient);
-  }
+  HomeController(this.apiClient, this.connectionService, this.storageService, this.showMessageCallback);
 
   Future<void> initialize() async {
     isLoading.value = true;
     errorMessage.value = null;
     try {
-      _userId = await storageService.getUserData();
-      if (_userId == null) {
-        _userId = await apiClient.getMyId();
-        if (_userId != null) {
-          await storageService.saveUserData(_userId!); 
-        } else {
-           errorMessage.value = "Failed to identify user. Please try logging in again.";
-           isLoading.value = false;
-           // Consider calling logout() or navigating to login here
-           return;
-        }
+      final user = await apiClient.getMe();
+      if (user != null) {
+        _userId = user.id;
+        currentUser.value = user;
+        await storageService.saveUserData(_userId!);
+      } else {
+        errorMessage.value = "Failed to identify user. Please try logging in again.";
+        isLoading.value = false;
+        return;
       }
-      // Optionally, fetch full User object if needed by more parts of the UI
-      // if (_userId != null && currentUser.value == null) {
-      //   currentUser.value = await apiClient.getUserById(_userId!);
-      // }
 
-      await wsClient.connect();
-      wsClient.listen(_handleWebSocketMessage);
-      debugPrint("WebSocket connected and listening.");
+      try {
+        await connectionService.connect();
+        connectionService.messageStream.listen(_handleWebSocketMessage);
+        debugPrint("WS: Connected and listening via ConnectionService.");
+      } catch (wsError) {
+        debugPrint("WS Connection error: $wsError");
+        showMessageCallback("Failed to connect to real-time service. Chat might not work.");
+      }
 
       final fetchedServers = await apiClient.getServers();
       servers.value = fetchedServers;
@@ -77,11 +74,18 @@ class HomeController {
     if (currentServer.value == server && rooms.value.isNotEmpty) return;
     isLoading.value = true;
     errorMessage.value = null;
+
+    if (currentServer.value != null) {
+      connectionService.unsubscribeServer(currentServer.value!.id);
+    }
+
     currentServer.value = server;
-    currentRoom.value = null; 
-    chatMessages.value = []; 
+    currentRoom.value = null;
+    chatMessages.value = [];
     rooms.value = [];
+
     try {
+      connectionService.subscribeServer(server.id);
       final fetchedRooms = await apiClient.getRooms(server.id);
       rooms.value = fetchedRooms;
       if (fetchedRooms.isNotEmpty) {
@@ -101,13 +105,16 @@ class HomeController {
     if (currentRoom.value == room && chatMessages.value.isNotEmpty && !isLoading.value) return;
     isLoading.value = true;
     errorMessage.value = null;
+
     if (currentRoom.value != null) {
-      wsClient.sendMessage("unsubscribe_room", {"room_id": currentRoom.value!.id});
+      connectionService.leaveRoom(currentRoom.value!.id);
     }
+
     currentRoom.value = room;
     chatMessages.value = [];
+
     try {
-      wsClient.sendMessage("subscribe_room", {"room_id": room.id});
+      connectionService.joinRoom(room.serverId, room.id);
       final fetchedMessages = await apiClient.getRoomMessages(room.id);
       chatMessages.value = fetchedMessages.reversed.toList();
     } catch (e) {
@@ -119,46 +126,43 @@ class HomeController {
 
   void sendMessage(String content) {
     if (content.trim().isEmpty) return;
-    if (currentRoom.value == null) {
-      showMessageCallback("No room selected to send a message.");
+    if (currentRoom.value == null || currentServer.value == null) {
+      showMessageCallback("No room or server selected to send a message.");
       return;
     }
     if (_userId == null) {
       showMessageCallback("User not identified. Cannot send message.");
       return;
     }
-    final messagePayload = {
-      "room_id": currentRoom.value!.id,
-      "content": content.trim(),
-    };
-    wsClient.sendMessage("send_message", messagePayload);
-    // Add optimistic update if ChatMessage model supports it and _userId is available for senderId
-    // final optimisticMessage = ChatMessage(
-    //   id: DateTime.now().millisecondsSinceEpoch.toString(), // Temporary ID
-    //   roomId: currentRoom.value!.id,
-    //   senderId: _userId!, 
-    //   content: content.trim(),
-    //   createdAt: DateTime.now(),
-    //   type: 'text' // Assuming default type
-    // );
-    // chatMessages.value = [optimisticMessage, ...chatMessages.value];
+
+    if (connectionService.isConnected) {
+      connectionService.chat(currentServer.value!.id, currentRoom.value!.id, content.trim());
+    } else {
+      showMessageCallback("Not connected to server. Message not sent.");
+    }
   }
 
   void _handleWebSocketMessage(dynamic message) {
-    debugPrint("WS Message Received: $message");
     try {
-      final decodedMessage = jsonDecode(message);
+      final decodedMessage = message is String ? jsonDecode(message) : message;
       final type = decodedMessage['type'];
       final data = decodedMessage['data'];
-      if (type == 'new_message' && data['room_id'] == currentRoom.value?.id) {
-        final chatMsg = ChatMessage.fromJson(data);
-        // Prevent adding duplicate if optimistic update was used by checking message ID
-        if (!chatMessages.value.any((m) => m.id == chatMsg.id)) {
-          chatMessages.value = [chatMsg, ...chatMessages.value];
-        }
+
+      switch (type) {
+        case 'room_chat_message':
+          if (data['room_id'] == currentRoom.value?.id) {
+            final chatMsg = ChatMessage.fromJson(data);
+            if (!chatMessages.value.any((m) => m.id == chatMsg.id)) {
+              chatMessages.value = [chatMsg, ...chatMessages.value];
+            }
+          }
+          break;
+        case 'error':
+          showMessageCallback("Server error: ${data['message']}");
+          break;
       }
     } catch (e) {
-      debugPrint("Error processing WS message: $e. Message was: $message");
+      debugPrint("Error processing WS message: $e");
     }
   }
 
@@ -166,8 +170,11 @@ class HomeController {
     isLoading.value = true;
     try {
       await apiClient.logout();
+    } catch (e) {
+      debugPrint("Error calling logout API: $e");
+    } finally {
       await storageService.clearAll();
-      wsClient.close();
+      connectionService.disconnect();
       currentServer.value = null;
       currentRoom.value = null;
       servers.value = [];
@@ -175,11 +182,8 @@ class HomeController {
       chatMessages.value = [];
       currentUser.value = null;
       _userId = null;
-    } catch (e) {
-      debugPrint("Error during logout: $e");
-      errorMessage.value = "Logout failed: $e";
+      isLoading.value = false;
     }
-    isLoading.value = false;
   }
 
   void dispose() {
@@ -191,6 +195,5 @@ class HomeController {
     rooms.dispose();
     currentRoom.dispose();
     chatMessages.dispose();
-    wsClient.close();
   }
 }

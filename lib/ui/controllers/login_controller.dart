@@ -82,10 +82,10 @@ class LoginController {
     }
   }
 
-  Future<bool> register(String username, String email, String password) async {
+  Future<bool> register(String nickname, String email, String password) async {
     errorMessage = null;
     try {
-      final response = await apiClient.register(username, email, password);
+      final response = await apiClient.register(nickname, email, password);
       if (response.statusCode != null && response.statusCode! >= 200 && response.statusCode! < 300) {
         // Assuming registration might also log the user in and set cookies
         return await _handleSuccessfulAuth();

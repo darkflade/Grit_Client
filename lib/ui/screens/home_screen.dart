@@ -2,14 +2,20 @@ import 'package:flutter/material.dart';
 import '../controllers/home_controller.dart';
 import '../../data/api/rest.dart';
 import '../../services/storage_service.dart';
+import '../../services/connection_service.dart';
 import '../../data/models/server.dart';
 import '../../data/models/room.dart';
 import '../../data/models/chat_message.dart';
 
 class HomeScreen extends StatefulWidget {
-  final ApiClient apiClient; // Added apiClient field
+  final ApiClient apiClient;
+  final ConnectionService connectionService;
 
-  const HomeScreen({super.key, required this.apiClient}); // Updated constructor
+  const HomeScreen({
+    super.key,
+    required this.apiClient,
+    required this.connectionService,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -22,10 +28,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Use the ApiClient passed via the widget
     final storageService = StorageService();
     _controller = HomeController(
-      widget.apiClient, // Use widget.apiClient
+      widget.apiClient,
+      widget.connectionService,
       storageService,
       (message) {
         if (mounted) {
@@ -104,7 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
                  return const Center(child: Text('No servers available. Pull drawer to refresh.'));
             }
              if (room == null && _controller.currentServer.value == null && _controller.isLoading.value ){
-              return const Center(child: CircularProgressIndicator()); // Handles initial loading if no server/room yet
+              return const Center(child: CircularProgressIndicator());
             }
             return _buildMessagesView();
           },
@@ -118,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         children: <Widget>[
           DrawerHeader(
-            decoration: BoxDecoration(color: Theme.of(context).primaryColor), // Using theme color
+            decoration: BoxDecoration(color: Theme.of(context).primaryColor),
             child: const Text('Gritos', style: TextStyle(color: Colors.white, fontSize: 24)),
           ),
           ListTile(
@@ -248,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              message.senderId, // TODO: Replace with username 
+                              message.senderId,
                               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isMe ? Colors.black54 : Theme.of(context).textTheme.bodySmall?.color),
                             ),
                             const SizedBox(height: 4),

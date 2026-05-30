@@ -1,13 +1,14 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:cookie_jar/cookie_jar.dart'; // For Cookie object
-import 'package:gritos_client/data/api/rest.dart';    // Added for ApiClient
+import 'package:cookie_jar/cookie_jar.dart';
+import 'package:gritos_client/data/api/rest.dart';
 import 'package:gritos_client/services/storage_service.dart';
+import 'package:gritos_client/services/connection_service.dart';
 import 'package:gritos_client/ui/screens/login_screen.dart';
 import 'package:gritos_client/ui/screens/home_screen.dart';
 import 'package:gritos_client/ui/screens/friends_screen.dart';
-import 'package:flutter/foundation.dart'; // For debugPrint
+import 'package:flutter/foundation.dart';
 
-// Your custom theme code (as per your image)
 MaterialColor createMaterialColor(Color color) {
   List strengths = <double>[.05];
   Map<int, Color> swatch = {};
@@ -31,15 +32,14 @@ MaterialColor createMaterialColor(Color color) {
 class CustomColors {
   static final MaterialColor primary = createMaterialColor(const Color(0xFF2E86C1));
   static final MaterialColor secondary = createMaterialColor(const Color(0xFFF39C12));
-  // Add other custom colors here
 }
-// End of custom theme code
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final storageService = StorageService();
-  final apiClient = ApiClient(); 
+  final apiClient = ApiClient();
+  final connectionService = ConnectionService(apiClient);
   String initialRoute = '/login';
 
   try {
@@ -51,14 +51,14 @@ void main() async {
       final cookieUri = Uri.parse(apiClient.baseUrl);
       List<Cookie> cookiesToLoad = [];
       
-      final accessCookie = Cookie(HttpHeaders.ACCESS_TOKEN, accessToken);
+      final accessCookie = Cookie("access_token", accessToken);
       accessCookie.domain = cookieUri.host;
       accessCookie.path = "/"; 
       cookiesToLoad.add(accessCookie);
 
       if (refreshToken != null && refreshToken.isNotEmpty) {
         debugPrint("Refresh token found, attempting to load into CookieJar.");
-        final refreshCookie = Cookie(HttpHeaders.REFRESH_TOKEN, refreshToken);
+        final refreshCookie = Cookie("refresh_token", refreshToken);
         refreshCookie.domain = cookieUri.host;
         refreshCookie.path = "/";
         cookiesToLoad.add(refreshCookie);
@@ -75,39 +75,50 @@ void main() async {
     initialRoute = '/login';
   }
 
-  runApp(MyApp(initialRoute: initialRoute, apiClient: apiClient));
-}
-
-class HttpHeaders {
-  static const String ACCESS_TOKEN = "access_token";
-  static const String REFRESH_TOKEN = "refresh_token";
+  runApp(MyApp(
+    initialRoute: initialRoute,
+    apiClient: apiClient,
+    connectionService: connectionService,
+  ));
 }
 
 class MyApp extends StatelessWidget {
   final String initialRoute;
   final ApiClient apiClient;
+  final ConnectionService connectionService;
 
-  const MyApp({super.key, required this.initialRoute, required this.apiClient});
+  const MyApp({
+    super.key,
+    required this.initialRoute,
+    required this.apiClient,
+    required this.connectionService,
+  });
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Gritos Client',
       theme: ThemeData(
-        primarySwatch: CustomColors.primary, // Using your custom primary color
+        primarySwatch: CustomColors.primary,
         colorScheme: ColorScheme.fromSwatch(
           primarySwatch: CustomColors.primary,
-          accentColor: CustomColors.secondary, // Using your custom secondary color
-          brightness: Brightness.light, // Or Brightness.dark based on your theme
+          accentColor: CustomColors.secondary,
+          brightness: Brightness.light,
         ),
         useMaterial3: true,
       ),
       initialRoute: initialRoute,
-      routes: {
-        // Pass the apiClient instance to the screens
-        '/login': (context) => LoginScreen(apiClient: apiClient),
-        '/home': (context) => HomeScreen(apiClient: apiClient),
-        '/friends': (context) => FriendsScreen(apiClient: apiClient),
+      onGenerateRoute: (settings) {
+        if (settings.name == '/login') {
+          return MaterialPageRoute(builder: (context) => LoginScreen(apiClient: apiClient));
+        }
+        if (settings.name == '/home') {
+          return MaterialPageRoute(builder: (context) => HomeScreen(apiClient: apiClient, connectionService: connectionService));
+        }
+        if (settings.name == '/friends') {
+          return MaterialPageRoute(builder: (context) => FriendsScreen(apiClient: apiClient, connectionService: connectionService));
+        }
+        return null;
       },
     );
   }

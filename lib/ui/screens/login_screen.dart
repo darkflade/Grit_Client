@@ -18,7 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _usernameController = TextEditingController(); // For registration
+  final _nicknameController = TextEditingController(); // For registration
 
   bool _isLogin = true; // To toggle between login and register
   bool _isLoading = false;
@@ -36,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _usernameController.dispose();
+    _nicknameController.dispose();
     super.dispose();
   }
 
@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       } else {
         success = await _controller.register(
-          _usernameController.text,
+          _nicknameController.text,
           _emailController.text,
           _passwordController.text,
         );
@@ -92,11 +92,11 @@ class _LoginScreenState extends State<LoginScreen> {
             children: <Widget>[
               if (!_isLogin)
                 TextFormField(
-                  controller: _usernameController,
-                  decoration: const InputDecoration(labelText: 'Username'),
+                  controller: _nicknameController,
+                  decoration: const InputDecoration(labelText: 'Nickname'),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your username';
+                      return 'Please enter your nickname';
                     }
                     return null;
                   },
