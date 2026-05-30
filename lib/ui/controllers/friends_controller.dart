@@ -7,6 +7,7 @@ import '../../services/storage_service.dart';
 import '../../services/connection_service.dart';
 import '../../data/models/user.dart';
 import '../../data/models/friend_request.dart';
+import '../../data/models/direct_room.dart';
 
 class FriendsController {
   final ApiClient apiClient;
@@ -89,7 +90,6 @@ class FriendsController {
       switch (type) {
         case 'friend_request_received':
           final request = FriendRequest.fromJson(data);
-          // Check if it's for us or from us (though friend_request_received usually means incoming)
           if (!friendRequests.value.any((r) => r.initiatorId == request.initiatorId && r.friendId == request.friendId)) {
             friendRequests.value = [request, ...friendRequests.value];
             final otherUser = request.initiatorId == _currentUserId ? request.friend : request.initiator;
@@ -107,6 +107,22 @@ class FriendsController {
     } catch (e) {
       debugPrint("FriendsController error processing WS message: $e");
     }
+  }
+
+  Future<DirectRoom?> startDirectChat(String userId) async {
+    isLoading.value = true;
+    try {
+      final room = await apiClient.createDirectRoom([userId]);
+      if (room != null) {
+        await storageService.saveLastActiveChat(roomId: room.id, isDirect: true);
+        return room;
+      }
+    } catch (e) {
+      showMessageCallback("Failed to start chat: $e");
+    } finally {
+      isLoading.value = false;
+    }
+    return null;
   }
 
   Future<void> acceptFriendRequest(String friendId) async {

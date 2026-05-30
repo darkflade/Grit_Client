@@ -1,9 +1,12 @@
 - [x] Research Project Structure and Current Implementation
 - [x] Refactor app paths and events
-- [/] Fix Type Errors and Abstract Event Transport
-	- [x] Create EventTransport abstraction
-	- [x] Update WsClient to implement EventTransport
-	- [x] Fix ApiClient errors (getMe and others)
-	- [x] Update ConnectionService to use EventTransport
-	- [x] Update Controllers with better error handling
+- [x] Fix Type Errors and Abstract Event Transport
+- [x] Add DMs, State Persistence, Attachments, and Settings Screen
+- [x] Messaging Enhancements and Fixes
+	- [x] Implement DM naming logic (nicknames)
+	- [x] Add Pins, Read Receipts, and Typing Indicators
+	- [x] Fix Message Ordering (UUIDv7 sorting)
+	- [x] Fix Online Status logic
+	- [x] Improve Attachment rendering in UI
+	- [x] Initiate DM from Friends list
 - [x] Verification and Testing

@@ -1,3 +1,5 @@
+import 'attachment.dart';
+
 class ChatMessage {
   final String id;
   final String roomId;
@@ -12,7 +14,7 @@ class ChatMessage {
   final String? deletedBy;
   final DateTime? pinnedAt;
   final String? pinnedBy;
-  final List<dynamic>? attachments;
+  final List<Attachment>? attachments;
   final List<dynamic>? reactions;
 
   ChatMessage({
@@ -48,7 +50,9 @@ class ChatMessage {
       deletedBy: json["deleted_by"],
       pinnedAt: json["pinned_at"] != null ? DateTime.parse(json["pinned_at"]) : null,
       pinnedBy: json["pinned_by"],
-      attachments: json["attachments"],
+      attachments: json["attachments"] != null
+          ? (json["attachments"] as List).map((e) => Attachment.fromJson(e as Map<String, dynamic>)).toList()
+          : null,
       reactions: json["reactions"],
     );
   }
@@ -67,7 +71,7 @@ class ChatMessage {
         "deleted_by": deletedBy,
         "pinned_at": pinnedAt?.toIso8601String(),
         "pinned_by": pinnedBy,
-        "attachments": attachments,
+        "attachments": attachments?.map((e) => e.toJson()).toList(),
         "reactions": reactions,
       };
 }

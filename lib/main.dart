@@ -2,11 +2,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:gritos_client/data/api/rest.dart';
+import 'package:gritos_client/data/api/websocket.dart';
 import 'package:gritos_client/services/storage_service.dart';
 import 'package:gritos_client/services/connection_service.dart';
 import 'package:gritos_client/ui/screens/login_screen.dart';
 import 'package:gritos_client/ui/screens/home_screen.dart';
 import 'package:gritos_client/ui/screens/friends_screen.dart';
+import 'package:gritos_client/ui/screens/settings_screen.dart';
 import 'package:flutter/foundation.dart';
 
 MaterialColor createMaterialColor(Color color) {
@@ -39,7 +41,11 @@ void main() async {
 
   final storageService = StorageService();
   final apiClient = ApiClient();
-  final connectionService = ConnectionService(apiClient);
+  
+  // Abstract Event Transport implementation
+  final wsTransport = WsClient(apiClient: apiClient);
+  final connectionService = ConnectionService(wsTransport);
+  
   String initialRoute = '/login';
 
   try {
@@ -76,7 +82,7 @@ void main() async {
   }
 
   runApp(MyApp(
-    initialRoute: initialRoute,
+    initialRoute: initialRoute, 
     apiClient: apiClient,
     connectionService: connectionService,
   ));
@@ -88,7 +94,7 @@ class MyApp extends StatelessWidget {
   final ConnectionService connectionService;
 
   const MyApp({
-    super.key,
+    super.key, 
     required this.initialRoute,
     required this.apiClient,
     required this.connectionService,
@@ -117,6 +123,9 @@ class MyApp extends StatelessWidget {
         }
         if (settings.name == '/friends') {
           return MaterialPageRoute(builder: (context) => FriendsScreen(apiClient: apiClient, connectionService: connectionService));
+        }
+        if (settings.name == '/settings') {
+          return MaterialPageRoute(builder: (context) => SettingsScreen(apiClient: apiClient));
         }
         return null;
       },

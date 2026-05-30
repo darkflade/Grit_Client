@@ -11,7 +11,7 @@ class FriendsScreen extends StatefulWidget {
   final ConnectionService connectionService;
 
   const FriendsScreen({
-    super.key,
+    super.key, 
     required this.apiClient,
     required this.connectionService,
   });
@@ -89,7 +89,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
         actions: [
           ValueListenableBuilder<bool>(
             valueListenable: _controller.isLoading,
-            builder: (_, isLoading, __) => isLoading
+            builder: (_, isLoading, _) => isLoading
                 ? const Padding(
                     padding: EdgeInsets.all(16.0),
                     child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
@@ -166,7 +166,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
       valueListenable: _controller.friendRequests,
       builder: (context, requests, __) {
         if (_controller.isLoading.value && requests.isEmpty) {
-          return const SizedBox.shrink();
+          return const SizedBox.shrink(); 
         }
         if (requests.isEmpty) {
           return const Padding(
@@ -211,7 +211,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
       valueListenable: _controller.friends,
       builder: (context, friends, __) {
          if (_controller.isLoading.value && friends.isEmpty) {
-          return const SizedBox.shrink();
+          return const SizedBox.shrink(); 
         }
         if (friends.isEmpty) {
           return const Padding(
@@ -228,9 +228,24 @@ class _FriendsScreenState extends State<FriendsScreen> {
             return ListTile(
               leading: CircleAvatar(child: Text(friend.nickname.isNotEmpty ? friend.nickname.substring(0, 1).toUpperCase() : "?")),
               title: Text(friend.nickname),
-              trailing: IconButton(
-                icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
-                onPressed: () => _controller.removeFriend(friend.id),
+              subtitle: Text(friend.status.toUpperCase()),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chat, color: Colors.blue),
+                    onPressed: () async {
+                      final room = await _controller.startDirectChat(friend.id);
+                      if (room != null && mounted) {
+                        Navigator.pushReplacementNamed(context, '/home');
+                      }
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
+                    onPressed: () => _controller.removeFriend(friend.id),
+                  ),
+                ],
               ),
             );
           },

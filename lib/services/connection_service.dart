@@ -1,11 +1,9 @@
 import 'dart:async';
-import '../data/api/rest.dart';
+import 'package:flutter/foundation.dart';
 import '../data/api/event_transport.dart';
-import '../data/api/websocket.dart';
 
 class ConnectionService {
-  final ApiClient apiClient;
-  late final EventTransport eventTransport;
+  final EventTransport eventTransport;
 
   final _messageController = StreamController<dynamic>.broadcast();
   Stream<dynamic> get messageStream => _messageController.stream;
@@ -13,9 +11,7 @@ class ConnectionService {
   bool _isConnected = false;
   bool get isConnected => _isConnected;
 
-  ConnectionService(this.apiClient) {
-    eventTransport = WsClient(apiClient: apiClient);
-  }
+  ConnectionService(this.eventTransport);
 
   Future<void> connect() async {
     if (_isConnected) return;
@@ -47,27 +43,39 @@ class ConnectionService {
 
   // Common commands abstracted
   void subscribeServer(String serverId) {
-    sendCommand("subscribe_server", {"server_id": serverId});
+    eventTransport.subscribeServer(serverId);
   }
 
   void unsubscribeServer(String serverId) {
-    sendCommand("unsubscribe_server", {"server_id": serverId});
+    eventTransport.unsubscribeServer(serverId);
   }
 
   void joinRoom(String serverId, String roomId) {
-    sendCommand("join_room", {"server_id": serverId, "room_id": roomId});
+    eventTransport.joinRoom(serverId, roomId);
   }
 
   void leaveRoom(String roomId) {
-    sendCommand("leave_room", {"room_id": roomId});
+    eventTransport.leaveRoom(roomId);
   }
 
-  void chat(String serverId, String roomId, String content, {String? nonce}) {
-    sendCommand("chat", {
-      "server_id": serverId,
-      "room_id": roomId,
-      "content": content,
-    }, nonce: nonce);
+  void chat(String serverId, String roomId, String content, {String? nonce, List<String>? attachmentIds}) {
+    eventTransport.chat(serverId, roomId, content, nonce: nonce, attachmentIds: attachmentIds);
+  }
+
+  void directMessage(String roomId, String content, {String? nonce, List<String>? attachmentIds}) {
+    eventTransport.directMessage(roomId, content, nonce: nonce, attachmentIds: attachmentIds);
+  }
+
+  void sendTypingIndicator(String roomId, bool isTyping, {required String scope}) {
+    eventTransport.sendTypingIndicator(roomId, isTyping, scope: scope);
+  }
+
+  void pinMessage(String roomId, String messageId, {bool isDirect = false}) {
+    eventTransport.pinMessage(roomId, messageId, isDirect: isDirect);
+  }
+
+  void markMessageRead(String roomId, String messageId, {bool isDirect = false}) {
+    eventTransport.markMessageRead(roomId, messageId, isDirect: isDirect);
   }
 
   void dispose() {

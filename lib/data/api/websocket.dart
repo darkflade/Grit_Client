@@ -13,7 +13,6 @@ class WsClient implements EventTransport {
 
   @override
   Future<void> connect() async {
-    // Using the host from ApiClient to ensure consistency
     final uri = Uri.parse(apiClient.baseUrl);
     final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
     final baseUrl = "$wsScheme://${uri.host}/ws/global/register";
@@ -57,7 +56,7 @@ class WsClient implements EventTransport {
 
   @override
   void sendCommand(String type, Map<String, dynamic> data, {String? nonce}) {
-    final payload = {
+    final Map<String, dynamic> payload = {
       "type": type,
       "data": data,
     };
@@ -77,29 +76,74 @@ class WsClient implements EventTransport {
     }
   }
 
-  // Helper methods for common commands (can be moved to a higher level or kept here as convenience)
+  @override
   void subscribeServer(String serverId) {
     sendCommand("subscribe_server", {"server_id": serverId});
   }
 
+  @override
   void unsubscribeServer(String serverId) {
     sendCommand("unsubscribe_server", {"server_id": serverId});
   }
 
+  @override
   void joinRoom(String serverId, String roomId) {
     sendCommand("join_room", {"server_id": serverId, "room_id": roomId});
   }
 
+  @override
   void leaveRoom(String roomId) {
     sendCommand("leave_room", {"room_id": roomId});
   }
 
-  void chat(String serverId, String roomId, String content, {String? nonce}) {
-    sendCommand("chat", {
+  @override
+  void chat(String serverId, String roomId, String content, {String? nonce, List<String>? attachmentIds}) {
+    final Map<String, dynamic> data = {
       "server_id": serverId,
       "room_id": roomId,
       "content": content,
-    }, nonce: nonce);
+    };
+    if (attachmentIds != null) {
+      data["attachment_ids"] = attachmentIds;
+    }
+    sendCommand("chat", data, nonce: nonce);
+  }
+
+  @override
+  void directMessage(String roomId, String content, {String? nonce, List<String>? attachmentIds}) {
+    final Map<String, dynamic> data = {
+      "room_id": roomId,
+      "content": content,
+    };
+    if (attachmentIds != null) {
+      data["attachment_ids"] = attachmentIds;
+    }
+    sendCommand("direct_message", data, nonce: nonce);
+  }
+
+  @override
+  void sendTypingIndicator(String roomId, bool isTyping, {required String scope}) {
+    sendCommand("typing_indicator", {
+      "room_id": roomId,
+      "is_typing": isTyping,
+      "scope": scope,
+    });
+  }
+
+  @override
+  void pinMessage(String roomId, String messageId, {bool isDirect = false}) {
+    sendCommand(isDirect ? "direct_message_pin" : "pin_message", {
+      "room_id": roomId,
+      "message_id": messageId,
+    });
+  }
+
+  @override
+  void markMessageRead(String roomId, String messageId, {bool isDirect = false}) {
+    sendCommand(isDirect ? "direct_message_read" : "mark_message_read", {
+      "room_id": roomId,
+      "message_id": messageId,
+    });
   }
 
   @override
