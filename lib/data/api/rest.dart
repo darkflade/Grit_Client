@@ -1,17 +1,16 @@
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
-import 'package:native_dio_adapter/native_dio_adapter.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 
 import '../models/friend_request.dart';
 import '../models/server.dart';
 import '../models/room.dart';
-import '../models/chat_message.dart';
 import '../models/user.dart';
 import '../models/direct_room.dart';
 import '../models/attachment.dart';
+import '../models/message_page.dart';
 
 class ApiClient {
   final Dio dio;
@@ -19,16 +18,16 @@ class ApiClient {
   late final CookieJar cookieJar;
 
   ApiClient() : dio = Dio() {
-    dio.httpClientAdapter = NativeAdapter();
-
     cookieJar = CookieJar();
     dio.interceptors.add(CookieManager(cookieJar));
 
-    dio.interceptors.add(LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      logPrint: (o) => debugPrint(o.toString()),
-    ));
+    dio.interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        logPrint: (o) => debugPrint(o.toString()),
+      ),
+    );
 
     dio.options.baseUrl = baseUrl;
     dio.options.connectTimeout = const Duration(seconds: 10);
@@ -42,23 +41,26 @@ class ApiClient {
   // Auth
   Future<Response> login(String email, String password) async {
     try {
-      return await dio.post("/api/auth/login", data: {
-        "email": email,
-        "password": password,
-      });
+      return await dio.post(
+        "/api/auth/login",
+        data: {"email": email, "password": password},
+      );
     } catch (e) {
       debugPrint("Login error: $e");
       rethrow;
     }
   }
 
-  Future<Response> register(String nickname, String email, String password) async {
+  Future<Response> register(
+    String nickname,
+    String email,
+    String password,
+  ) async {
     try {
-      return await dio.post("/api/auth/register", data: {
-        "nickname": nickname,
-        "email": email,
-        "password": password,
-      });
+      return await dio.post(
+        "/api/auth/register",
+        data: {"nickname": nickname, "email": email, "password": password},
+      );
     } catch (e) {
       debugPrint("Register error: $e");
       rethrow;
@@ -72,6 +74,15 @@ class ApiClient {
       debugPrint("Logout error: $e");
       rethrow;
     }
+  }
+
+  Future<String> getWebTransportToken() async {
+    final response = await dio.post("/api/auth/webtransport-token");
+    final data = response.data;
+    if (data is Map<String, dynamic> && data["token"] is String) {
+      return data["token"] as String;
+    }
+    throw Exception("Invalid WebTransport token response");
   }
 
   // User
@@ -114,7 +125,9 @@ class ApiClient {
       final res = await dio.get("/api/servers/");
       if (res.statusCode == 200 && res.data != null) {
         if (res.data is List) {
-          return (res.data as List).map((e) => Server.fromJson(e as Map<String, dynamic>)).toList();
+          return (res.data as List)
+              .map((e) => Server.fromJson(e as Map<String, dynamic>))
+              .toList();
         }
       }
     } catch (e) {
@@ -128,7 +141,9 @@ class ApiClient {
       final res = await dio.get("/api/servers/$serverId/rooms/");
       if (res.statusCode == 200 && res.data != null) {
         if (res.data is List) {
-          return (res.data as List).map((e) => Room.fromJson(e as Map<String, dynamic>)).toList();
+          return (res.data as List)
+              .map((e) => Room.fromJson(e as Map<String, dynamic>))
+              .toList();
         }
       }
     } catch (e) {
@@ -137,23 +152,26 @@ class ApiClient {
     return [];
   }
 
-  Future<List<ChatMessage>> getRoomMessages(String roomId, {int limit = 50, String? cursor}) async {
+  Future<MessagePage?> getRoomMessages(
+    String roomId, {
+    int limit = 25,
+    String? cursor,
+  }) async {
     try {
       final Map<String, dynamic> queryParameters = {"limit": limit};
       if (cursor != null) queryParameters["cursor"] = cursor;
 
-      final res = await dio.get("/api/rooms/$roomId/messages/", queryParameters: queryParameters);
+      final res = await dio.get(
+        "/api/rooms/$roomId/messages/",
+        queryParameters: queryParameters,
+      );
       if (res.statusCode == 200 && res.data != null) {
-        final data = res.data;
-        if (data is Map<String, dynamic> && data["messages"] is List) {
-          List messages = data["messages"];
-          return messages.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>)).toList();
-        }
+        return MessagePage.fromJson(res.data as Map<String, dynamic>);
       }
     } catch (e) {
       debugPrint("Error in getRoomMessages: $e");
     }
-    return [];
+    return null;
   }
 
   // Direct Messages
@@ -162,7 +180,9 @@ class ApiClient {
       final res = await dio.get("/api/direct/rooms");
       if (res.statusCode == 200 && res.data != null) {
         if (res.data is List) {
-          return (res.data as List).map((e) => DirectRoom.fromJson(e as Map<String, dynamic>)).toList();
+          return (res.data as List)
+              .map((e) => DirectRoom.fromJson(e as Map<String, dynamic>))
+              .toList();
         }
       }
     } catch (e) {
@@ -171,29 +191,36 @@ class ApiClient {
     return [];
   }
 
-  Future<List<ChatMessage>> getDirectMessages(String roomId, {int limit = 50, String? cursor}) async {
+  Future<MessagePage?> getDirectMessages(
+    String roomId, {
+    int limit = 25,
+    String? cursor,
+  }) async {
     try {
       final Map<String, dynamic> queryParameters = {"limit": limit};
       if (cursor != null) queryParameters["cursor"] = cursor;
 
-      final res = await dio.get("/api/direct/rooms/$roomId/messages", queryParameters: queryParameters);
+      final res = await dio.get(
+        "/api/direct/rooms/$roomId/messages",
+        queryParameters: queryParameters,
+      );
       if (res.statusCode == 200 && res.data != null) {
-        final data = res.data;
-        if (data is Map<String, dynamic> && data["messages"] is List) {
-          List messages = data["messages"];
-          return messages.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>)).toList();
-        }
+        return MessagePage.fromJson(res.data as Map<String, dynamic>);
       }
     } catch (e) {
       debugPrint("Error in getDirectMessages: $e");
     }
-    return [];
+    return null;
   }
 
   Future<DirectRoom?> createDirectRoom(List<String> userIds) async {
     try {
-      final res = await dio.post("/api/direct/rooms", data: {"user_ids": userIds});
-      if ((res.statusCode == 200 || res.statusCode == 201) && res.data != null) {
+      final res = await dio.post(
+        "/api/direct/rooms",
+        data: {"user_ids": userIds},
+      );
+      if ((res.statusCode == 200 || res.statusCode == 201) &&
+          res.data != null) {
         return DirectRoom.fromJson(res.data);
       }
     } catch (e) {
@@ -208,7 +235,9 @@ class ApiClient {
       final res = await dio.get("/api/users/friends/$userId");
       if (res.statusCode == 200 && res.data != null) {
         if (res.data is List) {
-          return (res.data as List).map((e) => User.fromJson(e as Map<String, dynamic>)).toList();
+          return (res.data as List)
+              .map((e) => User.fromJson(e as Map<String, dynamic>))
+              .toList();
         }
       }
     } catch (e) {
@@ -217,17 +246,25 @@ class ApiClient {
     return [];
   }
 
-  Future<List<FriendRequest>> getFriendRequests({int limit = 50, String? cursor}) async {
+  Future<List<FriendRequest>> getFriendRequests({
+    int limit = 50,
+    String? cursor,
+  }) async {
     try {
       final Map<String, dynamic> queryParameters = {"limit": limit};
       if (cursor != null) queryParameters["cursor"] = cursor;
 
-      final res = await dio.get("/api/users/friends/request/", queryParameters: queryParameters);
+      final res = await dio.get(
+        "/api/users/friends/request/",
+        queryParameters: queryParameters,
+      );
       if (res.statusCode == 200 && res.data != null) {
         final data = res.data;
         if (data is Map<String, dynamic> && data["requests"] is List) {
           List requests = data["requests"];
-          return requests.map((e) => FriendRequest.fromJson(e as Map<String, dynamic>)).toList();
+          return requests
+              .map((e) => FriendRequest.fromJson(e as Map<String, dynamic>))
+              .toList();
         }
       }
     } catch (e) {
@@ -288,16 +325,16 @@ class ApiClient {
     }
   }
 
-  Future<void> markMessageRead(String roomId, String messageId, {bool isDirect = false}) async {
+  Future<void> markMessageRead(
+    String roomId,
+    String messageId, {
+    bool isDirect = false,
+  }) async {
     try {
-      final path = isDirect 
+      final path = isDirect
           ? "/api/direct/rooms/$roomId/messages/$messageId/read"
-          : "/api/rooms/$roomId/messages/read-all"; // Swagger shows read-all for rooms
-      if (isDirect) {
-        await dio.put(path);
-      } else {
-        await dio.put(path);
-      }
+          : "/api/rooms/$roomId/messages/read-all";
+      await dio.put(path);
     } catch (e) {
       debugPrint("Error in markMessageRead: $e");
     }
@@ -318,10 +355,15 @@ class ApiClient {
 
   Future<List<User>> searchUsers(String query) async {
     try {
-      final res = await dio.get("/api/users/search", queryParameters: {"q": query});
+      final res = await dio.get(
+        "/api/users/search",
+        queryParameters: {"q": query},
+      );
       if (res.statusCode == 200 && res.data != null) {
         if (res.data is List) {
-          return (res.data as List).map((e) => User.fromJson(e as Map<String, dynamic>)).toList();
+          return (res.data as List)
+              .map((e) => User.fromJson(e as Map<String, dynamic>))
+              .toList();
         }
       }
     } catch (e) {
@@ -347,5 +389,20 @@ class ApiClient {
       debugPrint("Error in uploadFile: $e");
       return null;
     }
+  }
+
+  Future<Uint8List?> getFileBytes(String url) async {
+    try {
+      final response = await dio.get(
+        url,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      if (response.statusCode == 200) {
+        return Uint8List.fromList(response.data);
+      }
+    } catch (e) {
+      debugPrint("Error fetching file bytes: $e");
+    }
+    return null;
   }
 }

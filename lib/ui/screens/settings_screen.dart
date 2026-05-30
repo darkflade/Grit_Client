@@ -1,12 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../controllers/settings_controller.dart';
 import '../../data/api/rest.dart';
-import '../../data/models/user.dart';
+import '../../main.dart';
+import '../../services/connection_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final ApiClient apiClient;
+  final ConnectionService connectionService;
 
-  const SettingsScreen({super.key, required this.apiClient});
+  const SettingsScreen({
+    super.key,
+    required this.apiClient,
+    required this.connectionService,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -17,13 +25,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _nicknameController = TextEditingController();
   final _bioController = TextEditingController();
   String _selectedStatus = 'online';
+  String _selectedTheme = 'light';
+  String _selectedTransport = 'websocket';
 
   @override
   void initState() {
     super.initState();
-    _controller = SettingsController(widget.apiClient);
+    _selectedTheme = themeNotifier.value;
+    _controller = SettingsController(
+      widget.apiClient,
+      widget.connectionService,
+    );
     _controller.initialize().then((_) {
       final user = _controller.currentUser.value;
+      _selectedTransport = _controller.transportMode.value;
       if (user != null) {
         _nicknameController.text = user.nickname;
         _bioController.text = user.bio ?? "";
@@ -48,7 +63,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       status: _selectedStatus,
     );
     if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated!')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profile updated!')));
     }
   }
 
@@ -91,12 +108,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _selectedStatus,
+            initialValue: _selectedStatus,
             decoration: const InputDecoration(labelText: 'Status'),
             items: ['online', 'offline', 'idle', 'dnd'].map((s) {
               return DropdownMenuItem(value: s, child: Text(s.toUpperCase()));
             }).toList(),
             onChanged: (val) => setState(() => _selectedStatus = val!),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedTheme,
+            decoration: const InputDecoration(labelText: 'App Theme'),
+            items: ['light', 'dark', 'amoled'].map((s) {
+              return DropdownMenuItem(value: s, child: Text(s.toUpperCase()));
+            }).toList(),
+            onChanged: (val) {
+              setState(() => _selectedTheme = val!);
+              unawaited(_controller.updateTheme(val!));
+            },
+          ),
+          const SizedBox(height: 16),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            secondary: const Icon(Icons.swap_horiz),
+            title: const Text('WebTransport'),
+            value: _selectedTransport == 'webtransport',
+            onChanged: (enabled) {
+              final mode = enabled ? 'webtransport' : 'websocket';
+              setState(() => _selectedTransport = mode);
+              unawaited(_controller.updateTransportMode(mode));
+            },
           ),
           const SizedBox(height: 32),
           ElevatedButton(

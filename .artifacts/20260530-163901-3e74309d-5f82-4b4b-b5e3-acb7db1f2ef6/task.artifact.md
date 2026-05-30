@@ -3,10 +3,11 @@
 - [x] Fix Type Errors and Abstract Event Transport
 - [x] Add DMs, State Persistence, Attachments, and Settings Screen
 - [x] Messaging Enhancements and Fixes
-	- [x] Implement DM naming logic (nicknames)
-	- [x] Add Pins, Read Receipts, and Typing Indicators
-	- [x] Fix Message Ordering (UUIDv7 sorting)
-	- [x] Fix Online Status logic
-	- [x] Improve Attachment rendering in UI
-	- [x] Initiate DM from Friends list
+- [x] Messaging Polish and User Search
+- [x] Themes, Rich Media, and UI Refinement
+	- [x] Implement Dark and AMOLED themes
+	- [x] Fix Authenticated Media loading (Images/Videos)
+	- [x] Implement Nickname Cache for messages
+	- [x] Add Colored Presence Indicators (Circles)
+	- [x] Add Download action for files
 - [x] Verification and Testing

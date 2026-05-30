@@ -9,6 +9,8 @@ class StorageService {
   static const String _lastActiveServerIdKey = 'last_active_server_id';
   static const String _lastActiveRoomIdKey = 'last_active_room_id';
   static const String _lastActiveIsDirectKey = 'last_active_is_direct';
+  static const String _themeModeKey = 'theme_mode';
+  static const String _eventTransportModeKey = 'event_transport_mode';
 
   // Access Token
   Future<void> saveAccessToken(String token) async {
@@ -50,20 +52,27 @@ class StorageService {
   }
 
   // Last Active Chat
-  Future<void> saveLastActiveChat({String? serverId, String? roomId, bool isDirect = false}) async {
+  Future<void> saveLastActiveChat({
+    String? serverId,
+    String? roomId,
+    bool isDirect = false,
+  }) async {
     if (serverId != null) {
       await _storage.write(key: _lastActiveServerIdKey, value: serverId);
     } else {
       await _storage.delete(key: _lastActiveServerIdKey);
     }
-    
+
     if (roomId != null) {
       await _storage.write(key: _lastActiveRoomIdKey, value: roomId);
     } else {
       await _storage.delete(key: _lastActiveRoomIdKey);
     }
-    
-    await _storage.write(key: _lastActiveIsDirectKey, value: isDirect.toString());
+
+    await _storage.write(
+      key: _lastActiveIsDirectKey,
+      value: isDirect.toString(),
+    );
   }
 
   Future<Map<String, dynamic>> getLastActiveChat() async {
@@ -75,6 +84,23 @@ class StorageService {
       'roomId': roomId,
       'isDirect': isDirectStr == 'true',
     };
+  }
+
+  // Theme Mode
+  Future<void> saveThemeMode(String mode) async {
+    await _storage.write(key: _themeModeKey, value: mode);
+  }
+
+  Future<String?> getThemeMode() async {
+    return await _storage.read(key: _themeModeKey);
+  }
+
+  Future<void> saveEventTransportMode(String mode) async {
+    await _storage.write(key: _eventTransportModeKey, value: mode);
+  }
+
+  Future<String?> getEventTransportMode() async {
+    return await _storage.read(key: _eventTransportModeKey);
   }
 
   // Clear all

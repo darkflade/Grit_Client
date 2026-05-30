@@ -16,9 +16,11 @@ class FriendsController {
   final Function(String message) showMessageCallback;
 
   final isLoading = ValueNotifier<bool>(false);
+  final isSearching = ValueNotifier<bool>(false);
   final errorMessage = ValueNotifier<String?>(null);
   final friends = ValueNotifier<List<User>>([]);
   final friendRequests = ValueNotifier<List<FriendRequest>>([]);
+  final searchResults = ValueNotifier<List<User>>([]);
 
   String? _currentUserId;
   String? get currentUserId => _currentUserId;
@@ -109,6 +111,22 @@ class FriendsController {
     }
   }
 
+  Future<void> searchUsers(String query) async {
+    if (query.isEmpty) {
+      searchResults.value = [];
+      return;
+    }
+    isSearching.value = true;
+    try {
+      final results = await apiClient.searchUsers(query);
+      // Filter out self and existing friends
+      searchResults.value = results.where((u) => u.id != _currentUserId && !friends.value.any((f) => f.id == u.id)).toList();
+    } catch (e) {
+      debugPrint("Search error: $e");
+    }
+    isSearching.value = false;
+  }
+
   Future<DirectRoom?> startDirectChat(String userId) async {
     isLoading.value = true;
     try {
@@ -167,10 +185,10 @@ class FriendsController {
     isLoading.value = false;
   }
 
-  Future<void> sendFriendRequest(String userIdOrNickname) async {
+  Future<void> sendFriendRequest(String userId) async {
     isLoading.value = true;
     try {
-      await apiClient.createFriendRequest(userIdOrNickname);
+      await apiClient.createFriendRequest(userId);
       showMessageCallback("Friend request sent.");
     } catch (e) {
       debugPrint("Error sending friend request: $e");
@@ -181,8 +199,10 @@ class FriendsController {
 
   void dispose() {
     isLoading.dispose();
+    isSearching.dispose();
     errorMessage.dispose();
     friends.dispose();
     friendRequests.dispose();
+    searchResults.dispose();
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../controllers/home_controller.dart';
 import '../../data/api/rest.dart';
@@ -13,8 +14,8 @@ class HomeScreen extends StatefulWidget {
   final ConnectionService connectionService;
 
   const HomeScreen({
-    super.key, 
-    required this.apiClient, 
+    super.key,
+    required this.apiClient,
     required this.connectionService,
   });
 
@@ -25,6 +26,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late HomeController _controller;
   final _messageTextController = TextEditingController();
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -36,15 +38,40 @@ class _HomeScreenState extends State<HomeScreen> {
       storageService,
       (message) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
         }
       },
     );
     _controller.initialize();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'online':
+        return Colors.green;
+      case 'idle':
+        return Colors.orange;
+      case 'dnd':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _controller.loadMoreMessages();
+    }
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
     _controller.dispose();
     _messageTextController.dispose();
     super.dispose();
@@ -59,9 +86,16 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, isDirect, _) {
             if (isDirect) {
               final dRoom = _controller.currentDirectRoom.value;
-              return Text(dRoom?.getDisplayName(_controller.currentUserId ?? "") ?? 'Direct Message');
+              return Text(
+                dRoom?.getDisplayName(_controller.currentUserId ?? "") ??
+                    'Direct Message',
+              );
             }
-            return Text(_controller.currentRoom.value?.name ?? _controller.currentServer.value?.name ?? 'Gritos');
+            return Text(
+              _controller.currentRoom.value?.name ??
+                  _controller.currentServer.value?.name ??
+                  'Gritos',
+            );
           },
         ),
         actions: [
@@ -112,7 +146,10 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 8),
               Text(
                 "${users.length} user${users.length > 1 ? 's are' : ' is'} typing...",
-                style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ],
           ),
@@ -132,7 +169,21 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             accountEmail: ValueListenableBuilder(
               valueListenable: _controller.currentUser,
-              builder: (_, user, _) => Text(user?.status.toUpperCase() ?? ''),
+              builder: (_, user, _) => Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(user?.status ?? ""),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(user?.status.toUpperCase() ?? ""),
+                ],
+              ),
             ),
             currentAccountPicture: CircleAvatar(
               backgroundColor: Colors.white,
@@ -143,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
             leading: const Icon(Icons.people),
             title: const Text('Friends'),
             onTap: () {
-              Navigator.pop(context); 
+              Navigator.pop(context);
               Navigator.pushNamed(context, '/friends');
             },
           ),
@@ -178,17 +229,28 @@ class _HomeScreenState extends State<HomeScreen> {
               return ExpansionTile(
                 title: Text(server.name),
                 leading: const Icon(Icons.dns),
-                onExpansionChanged: (exp) { if (exp) _controller.selectServer(server); },
+                onExpansionChanged: (exp) {
+                  if (exp) _controller.selectServer(server);
+                },
                 children: [
                   ValueListenableBuilder<List<Room>>(
                     valueListenable: _controller.rooms,
                     builder: (context, rooms, _) {
                       return Column(
-                        children: rooms.map((room) => ListTile(
-                          title: Text(room.name),
-                          selected: _controller.currentRoom.value?.id == room.id,
-                          onTap: () { _controller.selectRoom(room); Navigator.pop(context); },
-                        )).toList(),
+                        children: rooms
+                            .map(
+                              (room) => ListTile(
+                                title: Text(room.name),
+                                selected:
+                                    _controller.currentRoom.value?.id ==
+                                    room.id,
+                                onTap: () {
+                                  _controller.selectRoom(room);
+                                  Navigator.pop(context);
+                                },
+                              ),
+                            )
+                            .toList(),
                       );
                     },
                   ),
@@ -208,7 +270,10 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           const Padding(
             padding: EdgeInsets.all(16.0),
-            child: Text('Direct Messages', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(
+              'Direct Messages',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
           Expanded(
             child: ValueListenableBuilder<List<DirectRoom>>(
@@ -220,9 +285,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     final dm = dms[index];
                     return ListTile(
                       leading: const Icon(Icons.person_outline),
-                      title: Text(dm.getDisplayName(_controller.currentUserId ?? "")),
-                      selected: _controller.currentDirectRoom.value?.id == dm.id,
-                      onTap: () { _controller.selectDirectRoom(dm); Navigator.pop(context); },
+                      title: Text(
+                        dm.getDisplayName(_controller.currentUserId ?? ""),
+                      ),
+                      selected:
+                          _controller.currentDirectRoom.value?.id == dm.id,
+                      onTap: () {
+                        _controller.selectDirectRoom(dm);
+                        Navigator.pop(context);
+                      },
                     );
                   },
                 );
@@ -242,9 +313,21 @@ class _HomeScreenState extends State<HomeScreen> {
           return const Center(child: Text("No messages yet."));
         }
         return ListView.builder(
+          controller: _scrollController,
           reverse: true,
-          itemCount: messages.length,
+          itemCount: messages.length + 1,
           itemBuilder: (context, index) {
+            if (index == messages.length) {
+              return ValueListenableBuilder<bool>(
+                valueListenable: _controller.isLoadingMore,
+                builder: (_, loading, _) => loading
+                    ? const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : const SizedBox.shrink(),
+              );
+            }
             final msg = messages[index];
             final isMe = msg.senderId == _controller.currentUserId;
             return _buildMessageTile(msg, isMe);
@@ -255,15 +338,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMessageTile(ChatMessage msg, bool isMe) {
-    final hasAttachments = msg.attachments != null && msg.attachments!.isNotEmpty;
-    
+    final hasAttachments =
+        msg.attachments != null && msg.attachments!.isNotEmpty;
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
         child: Card(
           margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-          color: isMe ? Colors.blue[100] : Colors.grey[200],
+          color: isMe
+              ? (Theme.of(context).brightness == Brightness.dark
+                    ? Colors.blue[900]
+                    : Colors.blue[100])
+              : (Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[800]
+                    : Colors.grey[200]),
           child: InkWell(
             onLongPress: () => _controller.pinMessage(msg.id),
             onTap: () => _controller.markAsRead(msg.id),
@@ -276,18 +368,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        isMe ? "You" : msg.senderId.substring(0, 8),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.grey),
+                        _controller.getNickname(msg.senderId),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                          color: Colors.grey,
+                        ),
                       ),
-                      if (msg.pinnedAt != null) 
+                      if (msg.pinnedAt != null)
                         const Padding(
                           padding: EdgeInsets.only(left: 4.0),
-                          child: Icon(Icons.push_pin, size: 10, color: Colors.orange),
+                          child: Icon(
+                            Icons.push_pin,
+                            size: 10,
+                            color: Colors.orange,
+                          ),
                         ),
                     ],
                   ),
                   if (msg.content.isNotEmpty) Text(msg.content),
-                  if (hasAttachments) ...msg.attachments!.map((a) => _buildAttachment(a)),
+                  if (hasAttachments)
+                    ...msg.attachments!.map((a) => _buildAttachment(a)),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     mainAxisSize: MainAxisSize.min,
@@ -296,13 +397,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         "${msg.createdAt.hour}:${msg.createdAt.minute.toString().padLeft(2, '0')}",
                         style: const TextStyle(fontSize: 8, color: Colors.grey),
                       ),
-                      if (isMe) 
+                      if (isMe)
                         Padding(
                           padding: const EdgeInsets.only(left: 4.0),
                           child: Icon(
-                            msg.status == "read" ? Icons.done_all : Icons.check, 
-                            size: 10, 
-                            color: msg.status == "read" ? Colors.blue : Colors.grey,
+                            msg.status == "read" ? Icons.done_all : Icons.check,
+                            size: 10,
+                            color: msg.status == "read"
+                                ? Colors.blue
+                                : Colors.grey,
                           ),
                         ),
                     ],
@@ -318,6 +421,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildAttachment(dynamic a) {
     final isImage = a.contentType?.startsWith("image/") ?? false;
+    final isVideo = a.contentType?.startsWith("video/") ?? false;
+
     return Padding(
       padding: const EdgeInsets.only(top: 8.0),
       child: Column(
@@ -326,26 +431,87 @@ class _HomeScreenState extends State<HomeScreen> {
           if (isImage)
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Image.network(
-                "${widget.apiClient.baseUrl}${a.url}",
-                headers: {"Cookie": "access_token=..."}, // This needs a proper fix with a custom ImageProvider
-                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
+              child: FutureBuilder<Uint8List?>(
+                future: widget.apiClient.getFileBytes(a.url),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Container(
+                      height: 100,
+                      width: 200,
+                      color: Colors.black12,
+                      child: const Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (snapshot.hasData && snapshot.data != null) {
+                    return Image.memory(snapshot.data!);
+                  }
+                  return const Icon(Icons.broken_image);
+                },
+              ),
+            )
+          else if (isVideo)
+            Container(
+              height: 150,
+              decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.play_circle_fill,
+                      size: 40,
+                      color: Colors.white70,
+                    ),
+                    Text(
+                      a.originalName,
+                      style: const TextStyle(fontSize: 10),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
             )
           else
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.insert_drive_file, size: 16),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    a.originalName,
-                    style: const TextStyle(fontSize: 12, decoration: TextDecoration.underline),
-                    overflow: TextOverflow.ellipsis,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.insert_drive_file, size: 16),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      a.originalName,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        decoration: TextDecoration.underline,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.download, size: 16),
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Downloading ${a.originalName}..."),
+                        ),
+                      );
+                      // In a real app, use path_provider and dio.download
+                    },
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
             ),
         ],
       ),
@@ -358,14 +524,15 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.attach_file), 
-            onPressed: _controller.pickAndSendFile
+            icon: const Icon(Icons.attach_file),
+            onPressed: _controller.pickAndSendFile,
           ),
           Expanded(
             child: TextField(
               controller: _messageTextController,
               decoration: const InputDecoration(hintText: 'Type a message...'),
-              onChanged: (val) => _controller.sendTypingIndicator(val.isNotEmpty),
+              onChanged: (val) =>
+                  _controller.sendTypingIndicator(val.isNotEmpty),
               onSubmitted: (_) => _send(),
             ),
           ),

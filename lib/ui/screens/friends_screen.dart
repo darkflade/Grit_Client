@@ -11,7 +11,7 @@ class FriendsScreen extends StatefulWidget {
   final ConnectionService connectionService;
 
   const FriendsScreen({
-    super.key, 
+    super.key,
     required this.apiClient,
     required this.connectionService,
   });
@@ -22,7 +22,7 @@ class FriendsScreen extends StatefulWidget {
 
 class _FriendsScreenState extends State<FriendsScreen> {
   late FriendsController _controller;
-  final _newFriendController = TextEditingController();
+  final _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -34,9 +34,9 @@ class _FriendsScreenState extends State<FriendsScreen> {
       storageService,
       (message) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
         }
       },
     );
@@ -46,39 +46,21 @@ class _FriendsScreenState extends State<FriendsScreen> {
   @override
   void dispose() {
     _controller.dispose();
-    _newFriendController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
-  void _sendFriendRequestDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Send Friend Request'),
-          content: TextField(
-            controller: _newFriendController,
-            decoration: const InputDecoration(hintText: "Enter user ID or nickname"),
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            TextButton(
-              child: const Text('Send'),
-              onPressed: () {
-                if (_newFriendController.text.isNotEmpty) {
-                  _controller.sendFriendRequest(_newFriendController.text);
-                  _newFriendController.clear();
-                  Navigator.of(context).pop();
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'online':
+        return Colors.green;
+      case 'idle':
+        return Colors.orange;
+      case 'dnd':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 
   @override
@@ -86,40 +68,50 @@ class _FriendsScreenState extends State<FriendsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Friends & Requests'),
-        actions: [
-          ValueListenableBuilder<bool>(
-            valueListenable: _controller.isLoading,
-            builder: (_, isLoading, _) => isLoading
-                ? const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-                  )
-                : IconButton(
-                    icon: const Icon(Icons.refresh),
-                    onPressed: () => _controller.initialize(),
-                  ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search by nickname...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    _controller.searchUsers("");
+                  },
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (val) => _controller.searchUsers(val),
+            ),
           ),
-        ],
+        ),
       ),
       body: ValueListenableBuilder<bool>(
         valueListenable: _controller.isLoading,
         builder: (context, isLoading, child) {
-          if (isLoading && _controller.friends.value.isEmpty && _controller.friendRequests.value.isEmpty) {
-             return const Center(child: CircularProgressIndicator());
+          if (isLoading &&
+              _controller.friends.value.isEmpty &&
+              _controller.friendRequests.value.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
           }
           return ValueListenableBuilder<String?>(
             valueListenable: _controller.errorMessage,
-            builder: (context, error, __) {
+            builder: (context, error, _) {
               if (error != null) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      'Error: $error\nPull to refresh or try again later.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                );
+                return Center(child: Text('Error: $error'));
               }
               return child!;
             },
@@ -130,29 +122,11 @@ class _FriendsScreenState extends State<FriendsScreen> {
           child: ListView(
             padding: const EdgeInsets.all(8.0),
             children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
-                child: Text('Friend Requests', style: Theme.of(context).textTheme.titleLarge),
-              ),
+              _buildSearchResults(),
+              _buildSectionTitle('Friend Requests'),
               _buildFriendRequestsList(),
               const Divider(height: 30),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Your Friends', style: Theme.of(context).textTheme.titleLarge),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Friend'),
-                      onPressed: _sendFriendRequestDialog,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.secondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildSectionTitle('Your Friends'),
               _buildFriendsList(),
             ],
           ),
@@ -161,17 +135,71 @@ class _FriendsScreenState extends State<FriendsScreen> {
     );
   }
 
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
+      child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+    );
+  }
+
+  Widget _buildSearchResults() {
+    return ValueListenableBuilder<List<User>>(
+      valueListenable: _controller.searchResults,
+      builder: (context, results, _) {
+        if (results.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionTitle('Search Results'),
+            ...results.map(
+              (user) => ListTile(
+                leading: Stack(
+                  children: [
+                    CircleAvatar(child: Text(user.nickname[0].toUpperCase())),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(user.status),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                title: Text(user.nickname),
+                subtitle: Text(user.status.toUpperCase()),
+                trailing: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () => _controller.sendFriendRequest(user.id),
+                  child: const Text("Add"),
+                ),
+              ),
+            ),
+            const Divider(),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildFriendRequestsList() {
     return ValueListenableBuilder<List<FriendRequest>>(
       valueListenable: _controller.friendRequests,
-      builder: (context, requests, __) {
-        if (_controller.isLoading.value && requests.isEmpty) {
-          return const SizedBox.shrink(); 
-        }
+      builder: (context, requests, _) {
         if (requests.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Center(child: Text('No pending friend requests.')),
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No pending requests.'),
+            ),
           );
         }
         return ListView.separated(
@@ -180,24 +208,38 @@ class _FriendsScreenState extends State<FriendsScreen> {
           itemCount: requests.length,
           itemBuilder: (context, index) {
             final request = requests[index];
-            final otherUser = request.initiatorId == _controller.currentUserId ? request.friend : request.initiator;
+            final otherUser = request.initiatorId == _controller.currentUserId
+                ? request.friend
+                : request.initiator;
             return ListTile(
-              leading: CircleAvatar(child: Text(otherUser.nickname.isNotEmpty ? otherUser.nickname.substring(0, 1).toUpperCase() : "?")),
+              leading: CircleAvatar(
+                child: Text(otherUser.nickname[0].toUpperCase()),
+              ),
               title: Text(otherUser.nickname),
-              subtitle: Text(request.initiatorId == _controller.currentUserId ? 'Outgoing request' : 'Incoming request'),
-              trailing: request.initiatorId != _controller.currentUserId ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  IconButton(
-                    icon: const Icon(Icons.check, color: Colors.green),
-                    onPressed: () => _controller.acceptFriendRequest(request.initiatorId),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.red),
-                    onPressed: () => _controller.rejectFriendRequest(request.initiatorId),
-                  ),
-                ],
-              ) : null,
+              subtitle: Text(
+                request.initiatorId == _controller.currentUserId
+                    ? 'Outgoing request'
+                    : 'Incoming request',
+              ),
+              trailing: request.initiatorId != _controller.currentUserId
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        IconButton(
+                          icon: const Icon(Icons.check, color: Colors.green),
+                          onPressed: () => _controller.acceptFriendRequest(
+                            request.initiatorId,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.red),
+                          onPressed: () => _controller.rejectFriendRequest(
+                            request.initiatorId,
+                          ),
+                        ),
+                      ],
+                    )
+                  : null,
             );
           },
           separatorBuilder: (context, index) => const Divider(),
@@ -209,14 +251,13 @@ class _FriendsScreenState extends State<FriendsScreen> {
   Widget _buildFriendsList() {
     return ValueListenableBuilder<List<User>>(
       valueListenable: _controller.friends,
-      builder: (context, friends, __) {
-         if (_controller.isLoading.value && friends.isEmpty) {
-          return const SizedBox.shrink(); 
-        }
+      builder: (context, friends, _) {
         if (friends.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Center(child: Text('You have no friends yet. Add some!')),
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No friends yet.'),
+            ),
           );
         }
         return ListView.separated(
@@ -226,7 +267,24 @@ class _FriendsScreenState extends State<FriendsScreen> {
           itemBuilder: (context, index) {
             final friend = friends[index];
             return ListTile(
-              leading: CircleAvatar(child: Text(friend.nickname.isNotEmpty ? friend.nickname.substring(0, 1).toUpperCase() : "?")),
+              leading: Stack(
+                children: [
+                  CircleAvatar(child: Text(friend.nickname[0].toUpperCase())),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(friend.status),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               title: Text(friend.nickname),
               subtitle: Text(friend.status.toUpperCase()),
               trailing: Row(
@@ -236,13 +294,17 @@ class _FriendsScreenState extends State<FriendsScreen> {
                     icon: const Icon(Icons.chat, color: Colors.blue),
                     onPressed: () async {
                       final room = await _controller.startDirectChat(friend.id);
-                      if (room != null && mounted) {
+                      if (!context.mounted) return;
+                      if (room != null) {
                         Navigator.pushReplacementNamed(context, '/home');
                       }
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
+                    icon: const Icon(
+                      Icons.remove_circle_outline,
+                      color: Colors.redAccent,
+                    ),
                     onPressed: () => _controller.removeFriend(friend.id),
                   ),
                 ],
