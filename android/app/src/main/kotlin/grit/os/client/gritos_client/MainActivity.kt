@@ -157,6 +157,8 @@ class MainActivity : FlutterActivity() {
               let transport = null;
               let writer = null;
               let reader = null;
+              let datagramWriter = null;
+              let datagramReader = null;
               let readBuffer = new Uint8Array(0);
 
               function post(method, value) {
@@ -175,6 +177,14 @@ class MainActivity : FlutterActivity() {
                   const view = new DataView(readBuffer.buffer, readBuffer.byteOffset, readBuffer.byteLength);
                   const payloadLength = view.getUint32(0, false);
                   const frameLength = 4 + payloadLength;
+                  
+                  if (payloadLength > 1024 * 1024 || payloadLength === 1213486160 /* 'HTTP' */) {
+                    const start = Array.from(readBuffer.slice(0, 32));
+                    const hex = start.map(b => b.toString(16).padStart(2, '0')).join(' ');
+                    const text = new TextDecoder().decode(new Uint8Array(start).filter(b => b >= 32 && b <= 126));
+                    post('onLog', 'Suspect frame! Length: ' + payloadLength + '. Hex: ' + hex + '. Text: ' + text);
+                  }
+
                   if (readBuffer.length < frameLength) return;
                   const payload = readBuffer.slice(4, frameLength);
                   post('onMessage', new TextDecoder().decode(payload));
@@ -196,6 +206,39 @@ class MainActivity : FlutterActivity() {
                 }
               }
 
+              async function datagramLoop() {
+                if (!transport || !transport.datagrams) {
+                  post('onLog', 'WebTransport datagrams are not available');
+                  return;
+                }
+                datagramWriter = transport.datagrams.writable.getWriter();
+                datagramReader = transport.datagrams.readable.getReader();
+                const decoder = new TextDecoder();
+                const encoder = new TextEncoder();
+                try {
+                  while (true) {
+                    const result = await datagramReader.read();
+                    if (result.done) break;
+                    const text = decoder.decode(result.value);
+                    let message = null;
+                    try {
+                      message = JSON.parse(text);
+                    } catch (_) {
+                      post('onLog', 'Ignoring non-json WebTransport datagram');
+                      continue;
+                    }
+                    if (message && message.type === 'ping') {
+                      await datagramWriter.write(encoder.encode(JSON.stringify({
+                        type: 'pong',
+                        ts: message.ts,
+                      })));
+                    }
+                  }
+                } catch (error) {
+                  post('onError', error && error.message ? error.message : error);
+                }
+              }
+
               window.gritosSend = async (message) => {
                 try {
                   if (!writer) throw new Error('WebTransport writer is not ready');
@@ -211,6 +254,7 @@ class MainActivity : FlutterActivity() {
 
               window.gritosClose = async () => {
                 try {
+                  if (datagramWriter) await datagramWriter.close();
                   if (writer) await writer.close();
                   if (transport) transport.close();
                 } catch (_) {}
@@ -228,6 +272,7 @@ class MainActivity : FlutterActivity() {
                   reader = stream.readable.getReader();
                   post('onReady', '');
                   readLoop();
+                  datagramLoop();
                   transport.closed.then(
                     () => post('onClosed', ''),
                     (error) => post('onError', error && error.message ? error.message : error),
@@ -259,6 +304,11 @@ class MainActivity : FlutterActivity() {
         @JavascriptInterface
         fun onMessage(value: String) {
             emitToFlutter("onMessage", value)
+        }
+
+        @JavascriptInterface
+        fun onLog(value: String) {
+            emitToFlutter("onLog", value)
         }
 
         @JavascriptInterface

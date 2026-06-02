@@ -605,6 +605,17 @@ components:
       properties:
         room_id:
           $ref: '#/components/schemas/UUID'
+        scope:
+          type: string
+          enum:
+            - server
+            - direct
+          description: Present on SFU leave acknowledgements.
+        reason:
+          type: string
+          enum:
+            - not_enough_participants
+          description: Present when the SFU closes the room automatically.
       additionalProperties: false
     ChatSendData:
       type: object
@@ -2517,6 +2528,12 @@ components:
     DirectCallEnded:
       name: DirectCallEnded
       messageId: DirectCallEnded
+      summary: Direct call ended.
+      description: >
+        Broadcast to all direct-room members when a direct call is explicitly ended
+        or when the backing direct SFU room is closed because a participant leaves
+        or disconnects. Clients should treat this as the canonical call-ended event;
+        late SFU signaling for the closed direct room may be ignored.
       payload:
         type: object
         required:

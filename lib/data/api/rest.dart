@@ -17,17 +17,12 @@ class ApiClient {
   final String baseUrl = "https://api.diogen.space";
   late final CookieJar cookieJar;
 
+  final Map<String, Uint8List> _fileCache = {};
+  final Map<String, Map<String, dynamic>> _metadataCache = {};
+
   ApiClient() : dio = Dio() {
     cookieJar = CookieJar();
     dio.interceptors.add(CookieManager(cookieJar));
-
-    dio.interceptors.add(
-      LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (o) => debugPrint(o.toString()),
-      ),
-    );
 
     dio.options.baseUrl = baseUrl;
     dio.options.connectTimeout = const Duration(seconds: 10);
@@ -340,6 +335,58 @@ class ApiClient {
     }
   }
 
+  Future<void> sendRoomMessage(
+    String roomId,
+    String content, {
+    String type = "text",
+    String? mediaUrl,
+    List<String>? attachmentIds,
+  }) async {
+    try {
+      final data = <String, dynamic>{
+        "content": content,
+        "type": type,
+      };
+      if (mediaUrl != null) data["media_url"] = mediaUrl;
+      if (attachmentIds != null) data["attachment_ids"] = attachmentIds;
+
+      debugPrint("ApiClient: sending room message to $roomId, data: $data");
+      final res = await dio.post(
+        "/api/rooms/$roomId/messages/",
+        data: data,
+      );
+      debugPrint("ApiClient: room message response: ${res.statusCode}");
+    } catch (e) {
+      debugPrint("Error in sendRoomMessage: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> sendDirectMessage(
+    String roomId,
+    String content, {
+    String type = "text",
+    String? mediaUrl,
+    List<String>? attachmentIds,
+  }) async {
+    try {
+      final data = <String, dynamic>{
+        "content": content,
+        "type": type,
+      };
+      if (mediaUrl != null) data["media_url"] = mediaUrl;
+      if (attachmentIds != null) data["attachment_ids"] = attachmentIds;
+
+      await dio.post(
+        "/api/direct/rooms/$roomId/messages",
+        data: data,
+      );
+    } catch (e) {
+      debugPrint("Error in sendDirectMessage: $e");
+      rethrow;
+    }
+  }
+
   Future<User?> updateProfile(Map<String, dynamic> data) async {
     try {
       final res = await dio.patch("/api/private/me", data: data);
@@ -392,16 +439,56 @@ class ApiClient {
   }
 
   Future<Uint8List?> getFileBytes(String url) async {
+    String fullUrl = url;
+    if (!url.startsWith("http")) {
+      final cleanUrl = url.startsWith('/') ? url : '/$url';
+      // If it doesn't already contain /api/ but looks like a relative path, 
+      // we might need to prepend /api/ if that's where files are served.
+      // But looking at swagger, URLs returned by server already start with /api/files/
+      fullUrl = "$baseUrl$cleanUrl";
+    }
+
+    if (_fileCache.containsKey(fullUrl)) return _fileCache[fullUrl];
     try {
       final response = await dio.get(
-        url,
+        fullUrl,
         options: Options(responseType: ResponseType.bytes),
       );
       if (response.statusCode == 200) {
-        return Uint8List.fromList(response.data);
+        final bytes = Uint8List.fromList(response.data);
+        _fileCache[fullUrl] = bytes;
+        _metadataCache[fullUrl] = {
+          'size': bytes.length,
+          'type': response.headers.value('content-type'),
+        };
+        return bytes;
       }
     } catch (e) {
-      debugPrint("Error fetching file bytes: $e");
+      debugPrint("Error fetching file bytes from $fullUrl: $e");
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> getFileMetadata(String url) async {
+    String fullUrl = url;
+    if (!url.startsWith("http")) {
+      final cleanUrl = url.startsWith('/') ? url : '/$url';
+      fullUrl = "$baseUrl$cleanUrl";
+    }
+
+    if (_metadataCache.containsKey(fullUrl)) return _metadataCache[fullUrl];
+    try {
+      final res = await dio.head(fullUrl);
+      if (res.statusCode == 200) {
+        final metadata = {
+          'size': int.tryParse(res.headers.value('content-length') ?? '0') ?? 0,
+          'type': res.headers.value('content-type'),
+        };
+        _metadataCache[fullUrl] = metadata;
+        return metadata;
+      }
+    } catch (e) {
+      debugPrint("Error fetching metadata for $fullUrl: $e");
     }
     return null;
   }

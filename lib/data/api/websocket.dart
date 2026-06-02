@@ -7,6 +7,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 class WsClient extends JsonEventTransport {
   WebSocketChannel? _channel;
   final ApiClient apiClient;
+  String _connectionState = "Disconnected";
 
   WsClient({required this.apiClient});
 
@@ -14,7 +15,14 @@ class WsClient extends JsonEventTransport {
   String get logPrefix => "WS";
 
   @override
+  String get transportType => "WebSocket";
+
+  @override
+  String get connectionState => _connectionState;
+
+  @override
   Future<void> connect() async {
+    _connectionState = "Connecting...";
     final uri = Uri.parse(apiClient.baseUrl);
     final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
     final baseUrl = "$wsScheme://${uri.host}/ws/global/register";
@@ -29,9 +37,13 @@ class WsClient extends JsonEventTransport {
       _channel = IOWebSocketChannel.connect(
         Uri.parse(baseUrl),
         headers: {"Cookie": cookieHeader},
+        pingInterval: const Duration(seconds: 20),
+        connectTimeout: const Duration(seconds: 25),
       );
+      _connectionState = "Connected";
       debugPrint("WS: Connected to $baseUrl");
     } catch (e) {
+      _connectionState = "Error";
       debugPrint("WS: Connection failed: $e");
       rethrow;
     }
@@ -51,10 +63,12 @@ class WsClient extends JsonEventTransport {
     _channel?.stream.listen(
       onMessage,
       onDone: () {
+        _connectionState = "Disconnected";
         debugPrint("WS: Connection closed by server");
         onDone?.call();
       },
       onError: (e) {
+        _connectionState = "Error";
         debugPrint("WS error: $e");
         onError?.call(e);
       },
@@ -80,5 +94,6 @@ class WsClient extends JsonEventTransport {
   void close() {
     _channel?.sink.close();
     _channel = null;
+    _connectionState = "Disconnected";
   }
 }

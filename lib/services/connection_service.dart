@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../data/api/event_transport.dart';
+import 'webrtc_sfu_service.dart';
 
 class ConnectionService {
   EventTransport eventTransport;
@@ -19,6 +21,7 @@ class ConnectionService {
 
   final Set<String> _subscribedServerIds = {};
   final Map<String, String> _joinedRooms = {};
+  final Map<String, WebRtcSfuService> _sfuSessions = {};
 
   ConnectionService(this.eventTransport);
 
@@ -51,6 +54,7 @@ class ConnectionService {
       _reconnectAttempt = 0;
       eventTransport.listen(
         (message) {
+          _handleSfuSignaling(message);
           _messageController.add(message);
         },
         onDone: _handleTransportDone,
@@ -132,6 +136,18 @@ class ConnectionService {
     );
   }
 
+  void directCallStart(String roomId) {
+    eventTransport.directCallStart(roomId);
+  }
+
+  void directCallEnd(String roomId, String callId) {
+    eventTransport.directCallEnd(roomId, callId);
+  }
+
+  void directCallDecline(String roomId, String callId) {
+    eventTransport.directCallDecline(roomId, callId);
+  }
+
   void sendTypingIndicator(
     String roomId,
     bool isTyping, {
@@ -150,6 +166,196 @@ class ConnectionService {
     bool isDirect = false,
   }) {
     eventTransport.markMessageRead(roomId, messageId, isDirect: isDirect);
+  }
+
+  // SFU Methods
+  Future<WebRtcSfuService> joinSfuRoom(String roomId) async {
+    if (_sfuSessions.containsKey(roomId)) {
+      return _sfuSessions[roomId]!;
+    }
+
+    final sfu = WebRtcSfuService(roomId: roomId, transport: eventTransport);
+    _sfuSessions[roomId] = sfu;
+    await sfu.initialize();
+    eventTransport.sfuJoin(roomId);
+    return sfu;
+  }
+
+  void leaveSfuRoom(String roomId, String sessionId) {
+    final sfu = _sfuSessions.remove(roomId);
+    final sid = sessionId.isNotEmpty ? sessionId : (sfu?.sessionId ?? "");
+    sfu?.dispose();
+    eventTransport.sfuLeave(roomId, sid);
+  }
+
+  void _handleSfuSignaling(dynamic message) {
+    try {
+      final decoded = message is String ? jsonDecode(message) : message;
+      final type = decoded['type'];
+      final data = decoded['data'];
+
+      if (type == null) return;
+
+      // Filter messages that should be routed to an active SFU session
+      const sfuSignalingTypes = {
+        'sfu_joined',
+        'sfu_offer',
+        'sfu_answer',
+        'sfu_ice_candidate',
+        'sfu_media_state',
+        'sfu_participant_muted',
+        'sfu_participant_unmuted',
+        'sfu_active_speakers',
+        'sfu_left',
+        'rtc_room_participants',
+      };
+
+      if (!sfuSignalingTypes.contains(type)) {
+        // This is a room/direct event, not SFU signaling.
+        return;
+      }
+
+      final roomId = _resolveSfuRoomId(decoded, data);
+      if (roomId == null) {
+        debugPrint("ConnectionService: Cannot route SFU message without room_id: $decoded");
+        return;
+      }
+
+      debugPrint(
+        "ConnectionService: SFU <= type=$type room=$roomId data=${_summarizeSfuData(data)}",
+      );
+
+      final sfu = _sfuSessions[roomId];
+      if (sfu == null) {
+        debugPrint("ConnectionService: No active SFU session for room $roomId");
+        return;
+      }
+
+      switch (type) {
+        case 'sfu_joined':
+          if (data is! Map) return;
+          // For direct calls, session_id might be missing or in room_id.
+          // We ensure we call handleSfuJoined to trigger negotiation.
+          final sid = data['session_id'] ?? data['room_id'] ?? "";
+          sfu.handleSfuJoined(sid.toString());
+          break;
+        case 'rtc_room_participants':
+          if (data is! Map) return;
+          sfu.handleRtcRoomParticipants(Map<String, dynamic>.from(data));
+          break;
+        case 'sfu_offer':
+          if (data is! Map) return;
+          final sdp = data['sdp'];
+          final sdpType = data['type'];
+          if (sdp is String && sdpType is String) {
+            _runSfuFuture(sfu.handleSfuOffer(sdp, sdpType), type);
+          } else {
+            debugPrint("ConnectionService: Bad sfu_offer payload: $data");
+          }
+          break;
+        case 'sfu_answer':
+          if (data is! Map) return;
+          final sdp = data['sdp'];
+          final sdpType = data['type'];
+          if (sdp is String && sdpType is String) {
+            _runSfuFuture(sfu.handleSfuAnswer(sdp, sdpType), type);
+          } else {
+            debugPrint("ConnectionService: Bad sfu_answer payload: $data");
+          }
+          break;
+        case 'sfu_ice_candidate':
+          _runSfuFuture(
+            sfu.handleSfuIceCandidate(
+              data is Map ? Map<String, dynamic>.from(data) : null,
+            ),
+            type,
+          );
+          break;
+        case 'sfu_media_state':
+          if (data is! Map) return;
+          final userId = data['user_id'];
+          if (userId != null) {
+            sfu.handleRemoteMediaState(userId, Map<String, dynamic>.from(data));
+          }
+          break;
+        case 'sfu_participant_muted':
+          if (data is! Map) return;
+          final userId = data['user_id'];
+          final kind = data['kind'];
+          if (userId != null && kind != null) {
+            sfu.handleParticipantMuted(userId, kind);
+          }
+          break;
+        case 'sfu_participant_unmuted':
+          if (data is! Map) return;
+          final userId = data['user_id'];
+          final kind = data['kind'];
+          if (userId != null && kind != null) {
+            sfu.handleParticipantUnmuted(userId, kind);
+          }
+          break;
+        case 'sfu_active_speakers':
+          if (data is! Map) return;
+          final speakers = data['active_speakers'];
+          if (speakers is List) {
+            sfu.handleActiveSpeakers(speakers.map((e) => e.toString()).toList());
+          }
+          break;
+        case 'sfu_left':
+          if (data is! Map) return;
+          final userId = data['user_id'];
+          if (userId != null) {
+            sfu.handleParticipantLeft(userId);
+          }
+          break;
+      }
+    } catch (e) {
+      debugPrint("ConnectionService: Error handling SFU signaling: $e");
+    }
+  }
+
+  void _runSfuFuture(Future<void> future, String type) {
+    unawaited(
+      future.catchError((Object error, StackTrace stackTrace) {
+        debugPrint("ConnectionService: SFU handler failed for $type: $error");
+      }),
+    );
+  }
+
+  String _summarizeSfuData(dynamic data) {
+    if (data == null) return 'null';
+    if (data is! Map) return data.toString();
+
+    final type = data['type'];
+    final sdp = data['sdp'];
+    final candidate = data['candidate'];
+    if (sdp is String) {
+      return '{type=$type, sdpLength=${sdp.length}}';
+    }
+    if (candidate is String) {
+      return '{candidateLength=${candidate.length}, sdpMid=${data['sdpMid']}, sdpMLineIndex=${data['sdpMLineIndex']}}';
+    }
+    return data.toString();
+  }
+
+  String? _resolveSfuRoomId(Map<dynamic, dynamic> decoded, dynamic data) {
+    final topLevelRoomId = decoded['room_id'];
+    if (topLevelRoomId is String && topLevelRoomId.isNotEmpty) {
+      return topLevelRoomId;
+    }
+
+    if (data is Map) {
+      final nestedRoomId = data['room_id'];
+      if (nestedRoomId is String && nestedRoomId.isNotEmpty) {
+        return nestedRoomId;
+      }
+    }
+
+    if (_sfuSessions.length == 1) {
+      return _sfuSessions.keys.single;
+    }
+
+    return null;
   }
 
   void _handleTransportDone() {

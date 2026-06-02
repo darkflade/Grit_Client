@@ -9,6 +9,10 @@ abstract class EventTransport {
   void sendCommand(String type, Map<String, dynamic> data, {String? nonce});
   void close();
 
+  // Transport info
+  String get transportType;
+  String get connectionState;
+
   // High level command methods
   void subscribeServer(String serverId);
   void unsubscribeServer(String serverId);
@@ -27,6 +31,13 @@ abstract class EventTransport {
     String? nonce,
     List<String>? attachmentIds,
   });
+  void directCallStart(String roomId);
+  void directCallEnd(String roomId, String callId);
+  void directCallDecline(String roomId, String callId);
+
+  // Snapshot requests
+  void getRoomMessages(String roomId, {int limit = 25, String? cursor});
+  void getDirectMessages(String roomId, {int limit = 25, String? cursor});
 
   // New commands
   void sendTypingIndicator(
@@ -40,4 +51,13 @@ abstract class EventTransport {
     String messageId, {
     bool isDirect = false,
   });
+
+  // SFU Signaling
+  void sfuJoin(String roomId);
+  void sfuLeave(String roomId, String sessionId);
+  void sfuSendOffer(String roomId, String sdp, String type);
+  void sfuSendAnswer(String roomId, String sdp, String type);
+  void sfuSendIceCandidate(String roomId, Map<String, dynamic>? candidate);
+  void sfuSendIceRestart(String roomId);
+  void sfuSendMediaState(String roomId, Map<String, dynamic> state);
 }

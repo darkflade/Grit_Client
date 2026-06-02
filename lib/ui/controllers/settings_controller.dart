@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../data/api/rest.dart';
 import '../../data/api/webtransport.dart';
@@ -16,6 +18,13 @@ class SettingsController {
   final errorMessage = ValueNotifier<String?>(null);
   final currentUser = ValueNotifier<User?>(null);
   final transportMode = ValueNotifier<String>('websocket');
+  
+  String? _userId;
+  StreamSubscription? _wsSubscription;
+
+  // Connection status info
+  String get currentTransport => connectionService.eventTransport.transportType;
+  String get connectionState => connectionService.eventTransport.connectionState;
 
   SettingsController(this.apiClient, this.connectionService);
 
@@ -27,10 +36,14 @@ class SettingsController {
           await storageService.getEventTransportMode() ?? 'websocket';
       final user = await apiClient.getMe();
       if (user != null) {
+        _userId = user.id;
         currentUser.value = user;
       } else {
         errorMessage.value = "Failed to load profile.";
       }
+      
+      _wsSubscription?.cancel();
+      _wsSubscription = connectionService.messageStream.listen(_handleWebSocketMessage);
     } catch (e) {
       errorMessage.value = "Error: $e";
     }
@@ -65,6 +78,18 @@ class SettingsController {
     return false;
   }
 
+  void _handleWebSocketMessage(dynamic message) {
+    try {
+      final decoded = message is String ? jsonDecode(message) : message;
+      if (decoded['type'] == 'user_presence_updated') {
+        final data = decoded['data'];
+        if (data['user_id'] == _userId && currentUser.value != null) {
+          currentUser.value = User.fromJson({...currentUser.value!.toJson(), 'status': data['status']});
+        }
+      }
+    } catch (_) {}
+  }
+
   Future<void> updateTheme(String mode) async {
     await storageService.saveThemeMode(mode);
     themeNotifier.value = mode;
@@ -85,5 +110,6 @@ class SettingsController {
     errorMessage.dispose();
     currentUser.dispose();
     transportMode.dispose();
+    _wsSubscription?.cancel();
   }
 }

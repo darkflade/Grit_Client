@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'event_transport.dart';
 
 abstract class JsonEventTransport implements EventTransport {
@@ -70,6 +69,35 @@ abstract class JsonEventTransport implements EventTransport {
   }
 
   @override
+  void directCallStart(String roomId) {
+    sendCommand("direct_call_start", {"room_id": roomId});
+  }
+
+  @override
+  void directCallEnd(String roomId, String callId) {
+    sendCommand("direct_call_end", {"room_id": roomId, "call_id": callId});
+  }
+
+  @override
+  void directCallDecline(String roomId, String callId) {
+    sendCommand("direct_call_decline", {"room_id": roomId, "call_id": callId});
+  }
+
+  @override
+  void getRoomMessages(String roomId, {int limit = 25, String? cursor}) {
+    final data = <String, dynamic>{"room_id": roomId, "limit": limit};
+    if (cursor != null) data["cursor"] = cursor;
+    sendCommand("get_room_messages", data);
+  }
+
+  @override
+  void getDirectMessages(String roomId, {int limit = 25, String? cursor}) {
+    final data = <String, dynamic>{"room_id": roomId, "limit": limit};
+    if (cursor != null) data["cursor"] = cursor;
+    sendCommand("get_direct_messages", data);
+  }
+
+  @override
   void sendTypingIndicator(
     String roomId,
     bool isTyping, {
@@ -99,6 +127,53 @@ abstract class JsonEventTransport implements EventTransport {
     sendCommand(isDirect ? "direct_message_read" : "mark_message_read", {
       "room_id": roomId,
       "message_id": messageId,
+    });
+  }
+
+  @override
+  void sfuJoin(String roomId) {
+    sendCommand("sfu_join", {"room_id": roomId});
+  }
+
+  @override
+  void sfuLeave(String roomId, String sessionId) {
+    sendCommand("sfu_leave", {"room_id": roomId, "session_id": sessionId});
+  }
+
+  @override
+  void sfuSendOffer(String roomId, String sdp, String type) {
+    sendCommand("sfu_offer", {
+      "room_id": roomId,
+      "data": {"sdp": sdp, "type": type}
+    });
+  }
+
+  @override
+  void sfuSendAnswer(String roomId, String sdp, String type) {
+    sendCommand("sfu_answer", {
+      "room_id": roomId,
+      "data": {"sdp": sdp, "type": type}
+    });
+  }
+
+  @override
+  void sfuSendIceCandidate(String roomId, Map<String, dynamic>? candidate) {
+    sendCommand("sfu_ice_candidate", {
+      "room_id": roomId,
+      "data": candidate,
+    });
+  }
+
+  @override
+  void sfuSendIceRestart(String roomId) {
+    sendCommand("sfu_ice_restart", {"room_id": roomId});
+  }
+
+  @override
+  void sfuSendMediaState(String roomId, Map<String, dynamic> state) {
+    sendCommand("sfu_media_state", {
+      "room_id": roomId,
+      ...state,
     });
   }
 }

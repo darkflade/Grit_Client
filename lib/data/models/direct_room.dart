@@ -7,6 +7,8 @@ class DirectRoom {
   final DateTime createdAt;
   final List<User> members;
 
+  List<String> get userIds => members.map((m) => m.id).toList();
+
   DirectRoom({
     required this.id,
     this.name,

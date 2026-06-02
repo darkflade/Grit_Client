@@ -143,6 +143,25 @@ class FriendsController {
     return null;
   }
 
+  Future<DirectRoom?> startDirectCall(String userId) async {
+    isLoading.value = true;
+    try {
+      final room = await apiClient.createDirectRoom([userId]);
+      if (room != null) {
+        await storageService.saveLastActiveChat(roomId: room.id, isDirect: true);
+        // We'll signal to HomeScreen to join SFU by setting a flag in storage 
+        // or relying on HomeScreen's selection logic if we add it there.
+        // For now, let's just mark it as the last active chat.
+        return room;
+      }
+    } catch (e) {
+      showMessageCallback("Failed to start call: $e");
+    } finally {
+      isLoading.value = false;
+    }
+    return null;
+  }
+
   Future<void> acceptFriendRequest(String friendId) async {
     isLoading.value = true;
     try {
