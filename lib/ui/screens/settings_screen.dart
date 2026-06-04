@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../controllers/settings_controller.dart';
 import '../../data/api/rest.dart';
 import '../../main.dart';
-import '../../services/connection_service.dart';
+import '../../core/realtime/connection_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final ApiClient apiClient;
@@ -63,7 +63,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated!'), behavior: SnackBarBehavior.floating),
+        const SnackBar(
+          content: Text('Profile updated!'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
@@ -104,17 +107,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Divider(height: 1),
             _buildTextField('Bio', _bioController, maxLines: 3),
             const Divider(height: 1),
-            _buildDropdown('Status', _selectedStatus, ['online', 'offline', 'idle', 'dnd'], (val) {
-              setState(() => _selectedStatus = val!);
-            }),
+            _buildDropdown(
+              'Status',
+              _selectedStatus,
+              ['online', 'offline', 'idle', 'dnd'],
+              (val) {
+                setState(() => _selectedStatus = val!);
+              },
+            ),
           ]),
           const SizedBox(height: 24),
           _buildSectionHeader('Appearance'),
           _buildCard([
-            _buildDropdown('Theme', _selectedTheme, ['light', 'dark', 'amoled'], (val) {
-              setState(() => _selectedTheme = val!);
-              unawaited(_controller.updateTheme(val!));
-            }),
+            _buildDropdown(
+              'Theme',
+              _selectedTheme,
+              ['light', 'dark', 'amoled'],
+              (val) {
+                setState(() => _selectedTheme = val!);
+                unawaited(_controller.updateTheme(val!));
+              },
+            ),
           ]),
           const SizedBox(height: 24),
           _buildSectionHeader('Network'),
@@ -122,7 +135,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SwitchListTile(
               secondary: const Icon(Icons.swap_horiz),
               title: const Text('WebTransport'),
-              subtitle: Text(_selectedTransport == 'webtransport' ? 'Active' : 'Using WebSocket'),
+              subtitle: Text(
+                _selectedTransport == 'webtransport'
+                    ? 'Active'
+                    : 'Using WebSocket',
+              ),
               value: _selectedTransport == 'webtransport',
               onChanged: (enabled) {
                 final mode = enabled ? 'webtransport' : 'websocket';
@@ -169,7 +186,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {int maxLines = 1}) {
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller, {
+    int maxLines = 1,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: TextField(
@@ -184,17 +205,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildDropdown(String label, String value, List<String> options, ValueChanged<String?> onChanged) {
+  Widget _buildDropdown(
+    String label,
+    String value,
+    List<String> options,
+    ValueChanged<String?> onChanged,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         decoration: InputDecoration(
           labelText: label,
           filled: false,
           contentPadding: EdgeInsets.zero,
         ),
-        items: options.map((s) => DropdownMenuItem(value: s, child: Text(s.toUpperCase()))).toList(),
+        items: options
+            .map(
+              (s) => DropdownMenuItem(value: s, child: Text(s.toUpperCase())),
+            )
+            .toList(),
         onChanged: onChanged,
       ),
     );
@@ -203,7 +233,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildConnectionStatus() {
     return Card(
       elevation: 0,
-      color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+      color: Theme.of(
+        context,
+      ).colorScheme.primaryContainer.withValues(alpha: 0.3),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -222,10 +254,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Real-time Connection', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Real-time Connection',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   Text(
                     '${_controller.currentTransport} • ${_controller.connectionState}',
-                    style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).textTheme.bodySmall?.color,
+                    ),
                   ),
                 ],
               ),

@@ -32,12 +32,12 @@ class FriendRequest {
   }
 
   Map<String, dynamic> toJson() => {
-        "initiator_id": initiatorId,
-        "friend_id": friendId,
-        "initiator": initiator.toJson(),
-        "friend": friend.toJson(),
-        "status": status,
-        "created_at": createdAt.toIso8601String(),
-        "updated_at": updatedAt.toIso8601String(),
-      };
+    "initiator_id": initiatorId,
+    "friend_id": friendId,
+    "initiator": initiator.toJson(),
+    "friend": friend.toJson(),
+    "status": status,
+    "created_at": createdAt.toIso8601String(),
+    "updated_at": updatedAt.toIso8601String(),
+  };
 }

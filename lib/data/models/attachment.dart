@@ -46,24 +46,26 @@ class Attachment {
       sizeBytes: json['size_bytes'] as int,
       url: json['url'] as String,
       createdAt: DateTime.parse(json['created_at']),
-      linkedAt: json['linked_at'] != null ? DateTime.parse(json['linked_at']) : null,
+      linkedAt: json['linked_at'] != null
+          ? DateTime.parse(json['linked_at'])
+          : null,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'owner_id': ownerId,
-        'kind': kind,
-        'is_linked': isLinked,
-        'message_id': messageId,
-        'user_id': userId,
-        'server_id': serverId,
-        'filepath': filepath,
-        'original_name': originalName,
-        'content_type': contentType,
-        'size_bytes': sizeBytes,
-        'url': url,
-        'created_at': createdAt.toIso8601String(),
-        'linked_at': linkedAt?.toIso8601String(),
-      };
+    'id': id,
+    'owner_id': ownerId,
+    'kind': kind,
+    'is_linked': isLinked,
+    'message_id': messageId,
+    'user_id': userId,
+    'server_id': serverId,
+    'filepath': filepath,
+    'original_name': originalName,
+    'content_type': contentType,
+    'size_bytes': sizeBytes,
+    'url': url,
+    'created_at': createdAt.toIso8601String(),
+    'linked_at': linkedAt?.toIso8601String(),
+  };
 }

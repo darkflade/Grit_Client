@@ -343,18 +343,12 @@ class ApiClient {
     List<String>? attachmentIds,
   }) async {
     try {
-      final data = <String, dynamic>{
-        "content": content,
-        "type": type,
-      };
+      final data = <String, dynamic>{"content": content, "type": type};
       if (mediaUrl != null) data["media_url"] = mediaUrl;
       if (attachmentIds != null) data["attachment_ids"] = attachmentIds;
 
       debugPrint("ApiClient: sending room message to $roomId, data: $data");
-      final res = await dio.post(
-        "/api/rooms/$roomId/messages/",
-        data: data,
-      );
+      final res = await dio.post("/api/rooms/$roomId/messages/", data: data);
       debugPrint("ApiClient: room message response: ${res.statusCode}");
     } catch (e) {
       debugPrint("Error in sendRoomMessage: $e");
@@ -370,17 +364,11 @@ class ApiClient {
     List<String>? attachmentIds,
   }) async {
     try {
-      final data = <String, dynamic>{
-        "content": content,
-        "type": type,
-      };
+      final data = <String, dynamic>{"content": content, "type": type};
       if (mediaUrl != null) data["media_url"] = mediaUrl;
       if (attachmentIds != null) data["attachment_ids"] = attachmentIds;
 
-      await dio.post(
-        "/api/direct/rooms/$roomId/messages",
-        data: data,
-      );
+      await dio.post("/api/direct/rooms/$roomId/messages", data: data);
     } catch (e) {
       debugPrint("Error in sendDirectMessage: $e");
       rethrow;
@@ -442,7 +430,7 @@ class ApiClient {
     String fullUrl = url;
     if (!url.startsWith("http")) {
       final cleanUrl = url.startsWith('/') ? url : '/$url';
-      // If it doesn't already contain /api/ but looks like a relative path, 
+      // If it doesn't already contain /api/ but looks like a relative path,
       // we might need to prepend /api/ if that's where files are served.
       // But looking at swagger, URLs returned by server already start with /api/files/
       fullUrl = "$baseUrl$cleanUrl";

@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/api/rest.dart';
-import '../../services/storage_service.dart';
-import '../../services/connection_service.dart';
+import '../../core/storage/storage_service.dart';
+import '../../core/realtime/connection_service.dart';
 import '../../data/models/user.dart';
 import '../../data/models/friend_request.dart';
 import '../../data/models/direct_room.dart';
@@ -25,7 +25,12 @@ class FriendsController {
   String? _currentUserId;
   String? get currentUserId => _currentUserId;
 
-  FriendsController(this.apiClient, this.connectionService, this.storageService, this.showMessageCallback);
+  FriendsController(
+    this.apiClient,
+    this.connectionService,
+    this.storageService,
+    this.showMessageCallback,
+  );
 
   Future<void> initialize() async {
     isLoading.value = true;
@@ -51,10 +56,7 @@ class FriendsController {
         debugPrint("FriendsController: WS connection error: $wsError");
       }
 
-      await Future.wait([
-        _fetchFriends(),
-        _fetchFriendRequests(),
-      ]);
+      await Future.wait([_fetchFriends(), _fetchFriendRequests()]);
     } catch (e) {
       debugPrint("FriendsController initialization error: $e");
       errorMessage.value = "Error initializing friends: $e";
@@ -92,9 +94,15 @@ class FriendsController {
       switch (type) {
         case 'friend_request_received':
           final request = FriendRequest.fromJson(data);
-          if (!friendRequests.value.any((r) => r.initiatorId == request.initiatorId && r.friendId == request.friendId)) {
+          if (!friendRequests.value.any(
+            (r) =>
+                r.initiatorId == request.initiatorId &&
+                r.friendId == request.friendId,
+          )) {
             friendRequests.value = [request, ...friendRequests.value];
-            final otherUser = request.initiatorId == _currentUserId ? request.friend : request.initiator;
+            final otherUser = request.initiatorId == _currentUserId
+                ? request.friend
+                : request.initiator;
             showMessageCallback("Friend request update: ${otherUser.nickname}");
           }
           break;
@@ -120,7 +128,13 @@ class FriendsController {
     try {
       final results = await apiClient.searchUsers(query);
       // Filter out self and existing friends
-      searchResults.value = results.where((u) => u.id != _currentUserId && !friends.value.any((f) => f.id == u.id)).toList();
+      searchResults.value = results
+          .where(
+            (u) =>
+                u.id != _currentUserId &&
+                !friends.value.any((f) => f.id == u.id),
+          )
+          .toList();
     } catch (e) {
       debugPrint("Search error: $e");
     }
@@ -132,7 +146,10 @@ class FriendsController {
     try {
       final room = await apiClient.createDirectRoom([userId]);
       if (room != null) {
-        await storageService.saveLastActiveChat(roomId: room.id, isDirect: true);
+        await storageService.saveLastActiveChat(
+          roomId: room.id,
+          isDirect: true,
+        );
         return room;
       }
     } catch (e) {
@@ -148,8 +165,11 @@ class FriendsController {
     try {
       final room = await apiClient.createDirectRoom([userId]);
       if (room != null) {
-        await storageService.saveLastActiveChat(roomId: room.id, isDirect: true);
-        // We'll signal to HomeScreen to join SFU by setting a flag in storage 
+        await storageService.saveLastActiveChat(
+          roomId: room.id,
+          isDirect: true,
+        );
+        // We'll signal to HomeScreen to join SFU by setting a flag in storage
         // or relying on HomeScreen's selection logic if we add it there.
         // For now, let's just mark it as the last active chat.
         return room;
@@ -167,10 +187,7 @@ class FriendsController {
     try {
       await apiClient.acceptFriendRequest(friendId);
       showMessageCallback("Friend request accepted.");
-      await Future.wait([
-        _fetchFriends(),
-        _fetchFriendRequests(),
-      ]);
+      await Future.wait([_fetchFriends(), _fetchFriendRequests()]);
     } catch (e) {
       debugPrint("Error accepting friend request: $e");
       showMessageCallback("Failed to accept friend request.");

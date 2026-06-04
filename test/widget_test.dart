@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gritos_client/data/api/rest.dart';
-import 'package:gritos_client/data/api/websocket.dart';
+import 'package:gritos_client/core/realtime/websocket_transport.dart';
 import 'package:gritos_client/main.dart';
-import 'package:gritos_client/services/connection_service.dart';
+import 'package:gritos_client/core/realtime/connection_service.dart';
 
 void main() {
   testWidgets('shows login screen', (WidgetTester tester) async {

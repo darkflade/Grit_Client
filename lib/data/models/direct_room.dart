@@ -24,7 +24,9 @@ class DirectRoom {
       isGroup: json['is_group'] as bool,
       createdAt: DateTime.parse(json['created_at']),
       members: json['members'] != null
-          ? (json['members'] as List).map((e) => User.fromJson(e as Map<String, dynamic>)).toList()
+          ? (json['members'] as List)
+                .map((e) => User.fromJson(e as Map<String, dynamic>))
+                .toList()
           : [],
     );
   }
@@ -32,7 +34,9 @@ class DirectRoom {
   String getDisplayName(String currentUserId) {
     if (name != null && name!.isNotEmpty) return name!;
     if (!isGroup) {
-      final otherMember = members.where((m) => m.id != currentUserId).firstOrNull;
+      final otherMember = members
+          .where((m) => m.id != currentUserId)
+          .firstOrNull;
       return otherMember?.nickname ?? 'Unknown User';
     }
     final otherNicknames = members
@@ -43,10 +47,10 @@ class DirectRoom {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'is_group': isGroup,
-        'created_at': createdAt.toIso8601String(),
-        'members': members.map((e) => e.toJson()).toList(),
-      };
+    'id': id,
+    'name': name,
+    'is_group': isGroup,
+    'created_at': createdAt.toIso8601String(),
+    'members': members.map((e) => e.toJson()).toList(),
+  };
 }

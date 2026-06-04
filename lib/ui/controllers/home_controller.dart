@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../../data/api/rest.dart';
-import '../../services/storage_service.dart';
-import '../../services/connection_service.dart';
-import '../../services/webrtc_sfu_service.dart';
+import '../../core/storage/storage_service.dart';
+import '../../core/realtime/connection_service.dart';
+import '../../features/calls/application/webrtc_sfu_service.dart';
 import '../../data/models/server.dart';
 import '../../data/models/room.dart';
 import '../../data/models/chat_message.dart';
@@ -64,7 +64,12 @@ class HomeController {
 
   Completer<MessagePage?>? _snapshotCompleter;
 
-  HomeController(this.apiClient, this.connectionService, this.storageService, this.showMessageCallback);
+  HomeController(
+    this.apiClient,
+    this.connectionService,
+    this.storageService,
+    this.showMessageCallback,
+  );
 
   Future<void> initialize() async {
     isLoading.value = true;
@@ -76,7 +81,8 @@ class HomeController {
         currentUser.value = user;
         await storageService.saveUserData(_userId!);
       } else {
-        errorMessage.value = "Failed to identify user. Please try logging in again.";
+        errorMessage.value =
+            "Failed to identify user. Please try logging in again.";
         isLoading.value = false;
         return;
       }
@@ -90,11 +96,11 @@ class HomeController {
 
       final fetchedServers = await apiClient.getServers();
       servers.value = fetchedServers;
-      
+
       for (var srv in fetchedServers) {
         connectionService.subscribeServer(srv.id);
       }
-      
+
       final fetchedDirectRooms = await apiClient.getDirectRooms();
       directRooms.value = fetchedDirectRooms;
 
@@ -104,12 +110,16 @@ class HomeController {
       final lastIsDirect = lastChat['isDirect'] as bool;
 
       if (lastIsDirect && lastRoomId != null) {
-        final dRoom = directRooms.value.where((r) => r.id == lastRoomId).firstOrNull;
+        final dRoom = directRooms.value
+            .where((r) => r.id == lastRoomId)
+            .firstOrNull;
         if (dRoom != null) {
           await selectDirectRoom(dRoom);
         }
       } else if (lastServerId != null && lastRoomId != null) {
-        final srv = servers.value.where((s) => s.id == lastServerId).firstOrNull;
+        final srv = servers.value
+            .where((s) => s.id == lastServerId)
+            .firstOrNull;
         if (srv != null) {
           await selectServer(srv, initialRoomId: lastRoomId);
         }
@@ -133,7 +143,7 @@ class HomeController {
         // Force 'online' status if we are active in the app
         apiClient.updateProfile({'status': 'online'});
       }
-      
+
       // If we are offline according to local state, try to refresh
       if (currentUser.value?.status == 'offline') {
         apiClient.getMe().then((user) {
@@ -203,10 +213,11 @@ class HomeController {
       connectionService.subscribeServer(server.id);
       final fetchedRooms = await apiClient.getRooms(server.id);
       rooms.value = fetchedRooms;
-      
+
       if (fetchedRooms.isNotEmpty) {
-        final roomToSelect = initialRoomId != null 
-            ? fetchedRooms.where((r) => r.id == initialRoomId).firstOrNull ?? fetchedRooms.first
+        final roomToSelect = initialRoomId != null
+            ? fetchedRooms.where((r) => r.id == initialRoomId).firstOrNull ??
+                  fetchedRooms.first
             : fetchedRooms.first;
         await selectRoom(roomToSelect);
       }
@@ -224,14 +235,15 @@ class HomeController {
     _nextCursor = null;
     _hasMore = false;
 
-    if (activeSfuService.value != null && activeSfuService.value!.roomId != room.id) {
-       // Auto-leave RTC room if we select another room? 
-       // For now, let the user manually leave or stay in call while chatting.
+    if (activeSfuService.value != null &&
+        activeSfuService.value!.roomId != room.id) {
+      // Auto-leave RTC room if we select another room?
+      // For now, let the user manually leave or stay in call while chatting.
     }
 
     try {
       connectionService.joinRoom(room.serverId, room.id);
-      
+
       if (room.type == 'rtc') {
         // Automatically join SFU for RTC rooms
         await joinSfuRoom(room.id);
@@ -246,7 +258,7 @@ class HomeController {
         _markActiveRoomRead();
         resolveUsers(page.messages);
       }
-      
+
       await storageService.saveLastActiveChat(
         serverId: room.serverId,
         roomId: room.id,
@@ -279,34 +291,36 @@ class HomeController {
         _markActiveRoomRead();
         resolveUsers(page.messages);
       }
-      
-      await storageService.saveLastActiveChat(
-        roomId: dRoom.id,
-        isDirect: true,
-      );
+
+      await storageService.saveLastActiveChat(roomId: dRoom.id, isDirect: true);
     } catch (e) {
       errorMessage.value = "Error selecting DM: $e";
     }
     isLoading.value = false;
   }
 
-  Future<MessagePage?> _fetchMessagesSnapshot(String roomId, {required bool isDirect}) async {
+  Future<MessagePage?> _fetchMessagesSnapshot(
+    String roomId, {
+    required bool isDirect,
+  }) async {
     _snapshotCompleter = Completer<MessagePage?>();
-    
+
     if (connectionService.isConnected) {
       if (isDirect) {
         connectionService.eventTransport.getDirectMessages(roomId, limit: 25);
       } else {
         connectionService.eventTransport.getRoomMessages(roomId, limit: 25);
       }
-      
+
       try {
-        return await _snapshotCompleter!.future.timeout(const Duration(seconds: 3));
+        return await _snapshotCompleter!.future.timeout(
+          const Duration(seconds: 3),
+        );
       } catch (_) {
         debugPrint("WS snapshot timeout, falling back to REST");
       }
     }
-    
+
     if (isDirect) {
       return await apiClient.getDirectMessages(roomId, limit: 25);
     } else {
@@ -316,14 +330,22 @@ class HomeController {
 
   Future<void> loadMoreMessages() async {
     if (isLoadingMore.value || !_hasMore || _nextCursor == null) return;
-    
+
     isLoadingMore.value = true;
     try {
       MessagePage? page;
       if (isDirectChat.value && currentDirectRoom.value != null) {
-        page = await apiClient.getDirectMessages(currentDirectRoom.value!.id, cursor: _nextCursor, limit: 25);
+        page = await apiClient.getDirectMessages(
+          currentDirectRoom.value!.id,
+          cursor: _nextCursor,
+          limit: 25,
+        );
       } else if (currentRoom.value != null) {
-        page = await apiClient.getRoomMessages(currentRoom.value!.id, cursor: _nextCursor, limit: 25);
+        page = await apiClient.getRoomMessages(
+          currentRoom.value!.id,
+          cursor: _nextCursor,
+          limit: 25,
+        );
       }
 
       if (page != null) {
@@ -342,28 +364,40 @@ class HomeController {
   }
 
   void _markActiveRoomRead() {
-    final roomId = isDirectChat.value ? currentDirectRoom.value?.id : currentRoom.value?.id;
+    final roomId = isDirectChat.value
+        ? currentDirectRoom.value?.id
+        : currentRoom.value?.id;
     if (roomId == null || chatMessages.value.isEmpty) return;
-    
+
     final lastMsg = chatMessages.value.first;
     if (lastMsg.senderId != _userId && lastMsg.status != "read") {
-       apiClient.markMessageRead(roomId, lastMsg.id, isDirect: isDirectChat.value);
-       connectionService.markMessageRead(roomId, lastMsg.id, isDirect: isDirectChat.value);
+      apiClient.markMessageRead(
+        roomId,
+        lastMsg.id,
+        isDirect: isDirectChat.value,
+      );
+      connectionService.markMessageRead(
+        roomId,
+        lastMsg.id,
+        isDirect: isDirectChat.value,
+      );
     }
   }
 
   Future<void> pickAndSendFile(String currentText) async {
     if (currentRoom.value == null && currentDirectRoom.value == null) return;
-    
+
     FilePickerResult? result = await FilePicker.platform.pickFiles();
     if (result != null && result.files.single.path != null) {
       File file = File(result.files.single.path!);
-      
+
       // Optimistic UI: Add a local message showing we are uploading
       final tempId = "local-upload-${DateTime.now().millisecondsSinceEpoch}";
-      final roomId = isDirectChat.value ? currentDirectRoom.value!.id : currentRoom.value!.id;
+      final roomId = isDirectChat.value
+          ? currentDirectRoom.value!.id
+          : currentRoom.value!.id;
       final fileName = file.path.split('/').last;
-      
+
       final tempMsg = ChatMessage(
         id: tempId,
         roomId: roomId,
@@ -379,8 +413,10 @@ class HomeController {
       try {
         final attachment = await apiClient.uploadFile("attachments", file);
         if (attachment != null) {
-          final content = currentText.trim().isNotEmpty ? currentText : attachment.originalName;
-          
+          final content = currentText.trim().isNotEmpty
+              ? currentText
+              : attachment.originalName;
+
           bool isImg = false;
           final ext = attachment.originalName.toLowerCase().split('.').last;
           if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].contains(ext)) {
@@ -388,10 +424,12 @@ class HomeController {
           }
 
           // Remove the temp message before sending the real one
-          chatMessages.value = chatMessages.value.where((m) => m.id != tempId).toList();
+          chatMessages.value = chatMessages.value
+              .where((m) => m.id != tempId)
+              .toList();
 
           await sendMessage(
-            content, 
+            content,
             attachmentIds: [attachment.id],
             type: isImg ? "image" : "file",
             mediaUrl: attachment.url,
@@ -435,19 +473,21 @@ class HomeController {
     // Optimistic UI for text-only messages
     String? tempId;
     if (!hasAttachments) {
-       tempId = "local-${DateTime.now().millisecondsSinceEpoch}";
-       final roomId = isDirectChat.value ? currentDirectRoom.value!.id : currentRoom.value!.id;
-       final tempMsg = ChatMessage(
-         id: tempId,
-         roomId: roomId,
-         senderId: _userId!,
-         content: finalContent,
-         type: type,
-         status: "sending",
-         createdAt: DateTime.now(),
-       );
-       chatMessages.value = [tempMsg, ...chatMessages.value];
-       _sortMessages();
+      tempId = "local-${DateTime.now().millisecondsSinceEpoch}";
+      final roomId = isDirectChat.value
+          ? currentDirectRoom.value!.id
+          : currentRoom.value!.id;
+      final tempMsg = ChatMessage(
+        id: tempId,
+        roomId: roomId,
+        senderId: _userId!,
+        content: finalContent,
+        type: type,
+        status: "sending",
+        createdAt: DateTime.now(),
+      );
+      chatMessages.value = [tempMsg, ...chatMessages.value];
+      _sortMessages();
     }
 
     if (hasAttachments) {
@@ -455,16 +495,16 @@ class HomeController {
       try {
         if (isDirectChat.value && currentDirectRoom.value != null) {
           await apiClient.sendDirectMessage(
-            currentDirectRoom.value!.id, 
-            finalContent, 
+            currentDirectRoom.value!.id,
+            finalContent,
             attachmentIds: attachmentIds,
             type: type,
             mediaUrl: mediaUrl,
           );
         } else if (currentRoom.value != null) {
           await apiClient.sendRoomMessage(
-            currentRoom.value!.id, 
-            finalContent, 
+            currentRoom.value!.id,
+            finalContent,
             attachmentIds: attachmentIds,
             type: type,
             mediaUrl: mediaUrl,
@@ -478,9 +518,18 @@ class HomeController {
       // Use WebTransport for text-only messages
       try {
         if (isDirectChat.value && currentDirectRoom.value != null) {
-          connectionService.directMessage(currentDirectRoom.value!.id, finalContent, attachmentIds: attachmentIds);
+          connectionService.directMessage(
+            currentDirectRoom.value!.id,
+            finalContent,
+            attachmentIds: attachmentIds,
+          );
         } else if (currentRoom.value != null && currentServer.value != null) {
-          connectionService.chat(currentServer.value!.id, currentRoom.value!.id, finalContent, attachmentIds: attachmentIds);
+          connectionService.chat(
+            currentServer.value!.id,
+            currentRoom.value!.id,
+            finalContent,
+            attachmentIds: attachmentIds,
+          );
         }
       } catch (e) {
         if (tempId != null) _markMessageError(tempId);
@@ -490,21 +539,33 @@ class HomeController {
   }
 
   void sendTypingIndicator(bool isTyping) {
-    final roomId = isDirectChat.value ? currentDirectRoom.value?.id : currentRoom.value?.id;
+    final roomId = isDirectChat.value
+        ? currentDirectRoom.value?.id
+        : currentRoom.value?.id;
     if (roomId == null) return;
-    connectionService.sendTypingIndicator(roomId, isTyping, scope: isDirectChat.value ? "direct" : "room");
+    connectionService.sendTypingIndicator(
+      roomId,
+      isTyping,
+      scope: isDirectChat.value ? "direct" : "room",
+    );
   }
 
   void pinMessage(String messageId) {
-    final roomId = isDirectChat.value ? currentDirectRoom.value?.id : currentRoom.value?.id;
+    final roomId = isDirectChat.value
+        ? currentDirectRoom.value?.id
+        : currentRoom.value?.id;
     if (roomId == null) return;
-    connectionService.pinMessage(roomId, messageId, isDirect: isDirectChat.value);
+    connectionService.pinMessage(
+      roomId,
+      messageId,
+      isDirect: isDirectChat.value,
+    );
   }
 
   // SFU Methods
   Future<void> joinSfuRoom(String roomId, {bool isDirectCall = false}) async {
     if (activeSfuService.value?.roomId == roomId) return;
-    
+
     // Leave previous if any (optional, maybe support multi-room later?)
     await leaveSfu();
 
@@ -537,23 +598,25 @@ class HomeController {
   Future<void> acceptCall() async {
     final call = incomingCall.value;
     if (call == null) return;
-    
+
     _activeDirectCallId = call.callId;
     incomingCall.value = null;
-    
+
     // Select the room if not already selected
-    final dRoom = directRooms.value.where((r) => r.id == call.roomId).firstOrNull;
+    final dRoom = directRooms.value
+        .where((r) => r.id == call.roomId)
+        .firstOrNull;
     if (dRoom != null) {
       await selectDirectRoom(dRoom);
     }
-    
+
     await joinSfuRoom(call.roomId, isDirectCall: true);
   }
 
   Future<void> declineCall() async {
     final call = incomingCall.value;
     if (call == null) return;
-    
+
     connectionService.directCallDecline(call.roomId, call.callId);
     incomingCall.value = null;
   }
@@ -564,7 +627,7 @@ class HomeController {
       if (_activeCallIsDirect && _activeDirectCallId != null) {
         connectionService.directCallEnd(roomId, _activeDirectCallId!);
       }
-      // We need session_id for sfu_leave. For now, we use a placeholder or 
+      // We need session_id for sfu_leave. For now, we use a placeholder or
       // track it in ConnectionService. Let's use an empty string if unknown.
       connectionService.leaveSfuRoom(roomId, "");
       activeSfuService.value = null;
@@ -577,12 +640,18 @@ class HomeController {
   void toggleCamera() => activeSfuService.value?.toggleCamera();
 
   void markAsRead(String messageId) {
-    final roomId = isDirectChat.value ? currentDirectRoom.value?.id : currentRoom.value?.id;
+    final roomId = isDirectChat.value
+        ? currentDirectRoom.value?.id
+        : currentRoom.value?.id;
     if (roomId == null) return;
-    
+
     final msg = chatMessages.value.where((m) => m.id == messageId).firstOrNull;
     if (msg != null && msg.status != "read" && msg.senderId != _userId) {
-       connectionService.markMessageRead(roomId, messageId, isDirect: isDirectChat.value);
+      connectionService.markMessageRead(
+        roomId,
+        messageId,
+        isDirect: isDirectChat.value,
+      );
     }
   }
 
@@ -605,11 +674,17 @@ class HomeController {
           final status = data['status'];
           debugPrint("HomeController: Presence update for $userId: $status");
           if (userId == _userId) {
-            final updated = User.fromJson({...currentUser.value!.toJson(), 'status': status});
+            final updated = User.fromJson({
+              ...currentUser.value!.toJson(),
+              'status': status,
+            });
             currentUser.value = updated;
           }
           if (userCache.containsKey(userId)) {
-            userCache[userId] = User.fromJson({...userCache[userId]!.toJson(), 'status': status});
+            userCache[userId] = User.fromJson({
+              ...userCache[userId]!.toJson(),
+              'status': status,
+            });
             nicknameVersion.value++;
           }
           break;
@@ -625,17 +700,20 @@ class HomeController {
           }
           break;
         case 'direct_message_created':
-          if (isDirectChat.value && data['room_id'] == currentDirectRoom.value?.id) {
+          if (isDirectChat.value &&
+              data['room_id'] == currentDirectRoom.value?.id) {
             _processIncomingMessage(data);
           }
           break;
         case 'typing_indicator':
           final roomId = data['room_id'];
-          final activeRoomId = isDirectChat.value ? currentDirectRoom.value?.id : currentRoom.value?.id;
+          final activeRoomId = isDirectChat.value
+              ? currentDirectRoom.value?.id
+              : currentRoom.value?.id;
           if (roomId == activeRoomId) {
             final userId = data['user_id'];
             if (userId == _userId) return; // Filter out self
-            
+
             final isTyping = data['is_typing'];
             final newSet = Set<String>.from(typingUsers.value);
             if (isTyping) {
@@ -649,7 +727,9 @@ class HomeController {
         case 'message_status_updated':
         case 'direct_message_status_updated':
           final roomId = data['room_id'];
-          final activeRoomId = isDirectChat.value ? currentDirectRoom.value?.id : currentRoom.value?.id;
+          final activeRoomId = isDirectChat.value
+              ? currentDirectRoom.value?.id
+              : currentRoom.value?.id;
           if (roomId == activeRoomId) {
             final msgId = data['message_id'];
             final status = data['status'];
@@ -666,7 +746,7 @@ class HomeController {
           final roomId = data['room_id'];
           final callId = data['id'];
           final initiatorId = data['initiator_id'];
-          
+
           if (initiatorId == _userId) {
             // We started this call
             _activeDirectCallId = callId;
@@ -696,7 +776,7 @@ class HomeController {
         case 'direct_call_declined':
           final roomId = data['room_id'];
           final callId = data['id'];
-          
+
           if (incomingCall.value?.callId == callId) {
             incomingCall.value = null;
           }
@@ -711,7 +791,7 @@ class HomeController {
           if (userId == _userId || userId == null) {
             // We were removed from the room or room closed
             if (roomId == activeSfuService.value?.roomId) {
-               _stopSfuSession(roomId);
+              _stopSfuSession(roomId);
             }
           }
           break;
@@ -726,14 +806,16 @@ class HomeController {
 
   void _processIncomingMessage(Map<String, dynamic> data) {
     final chatMsg = ChatMessage.fromJson(data);
-    
+
     // Deduplicate: replace matching optimistic message
     bool replaced = false;
     final currentMessages = List<ChatMessage>.from(chatMessages.value);
-    
+
     for (int i = 0; i < currentMessages.length; i++) {
       final m = currentMessages[i];
-      if (m.senderId == chatMsg.senderId && m.status == "sending" && (m.content == chatMsg.content || m.id.startsWith("local"))) {
+      if (m.senderId == chatMsg.senderId &&
+          m.status == "sending" &&
+          (m.content == chatMsg.content || m.id.startsWith("local"))) {
         currentMessages[i] = chatMsg;
         replaced = true;
         break;

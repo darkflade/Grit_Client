@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import '../controllers/login_controller.dart';
-import '../../services/storage_service.dart';
+import '../../core/storage/storage_service.dart';
 import '../../data/api/rest.dart';
 
 class LoginScreen extends StatefulWidget {
   final ApiClient apiClient; // Added apiClient field
 
-  const LoginScreen({super.key, required this.apiClient}); // Updated constructor
+  const LoginScreen({
+    super.key,
+    required this.apiClient,
+  }); // Updated constructor
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -29,7 +32,10 @@ class _LoginScreenState extends State<LoginScreen> {
     super.initState();
     // Use the ApiClient passed via the widget
     final storageService = StorageService();
-    _controller = LoginController(widget.apiClient, storageService); // Use widget.apiClient
+    _controller = LoginController(
+      widget.apiClient,
+      storageService,
+    ); // Use widget.apiClient
   }
 
   @override
@@ -71,7 +77,8 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         setState(() {
-          _errorMessage = _controller.errorMessage ?? "An unknown error occurred.";
+          _errorMessage =
+              _controller.errorMessage ?? "An unknown error occurred.";
         });
       }
     }
@@ -80,9 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isLogin ? 'Login' : 'Register'),
-      ),
+      appBar: AppBar(title: Text(_isLogin ? 'Login' : 'Register')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -123,8 +128,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your password';
                   }
-                  if (value.length < 6 && !_isLogin) { // Basic password length for registration
-                     return 'Password must be at least 6 characters';
+                  if (value.length < 6 && !_isLogin) {
+                    // Basic password length for registration
+                    return 'Password must be at least 6 characters';
                   }
                   return null;
                 },
@@ -142,7 +148,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.only(top: 8.0),
                   child: Text(
                     _errorMessage!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ),
               TextButton(
@@ -154,7 +162,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   });
                 },
                 child: Text(
-                    _isLogin ? 'Create an account' : 'Have an account? Sign in'),
+                  _isLogin ? 'Create an account' : 'Have an account? Sign in',
+                ),
               ),
             ],
           ),

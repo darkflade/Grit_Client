@@ -4,10 +4,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../controllers/home_controller.dart';
-import '../../services/webrtc_sfu_service.dart';
+import '../../features/calls/application/webrtc_sfu_service.dart';
 import '../../data/api/rest.dart';
-import '../../services/storage_service.dart';
-import '../../services/connection_service.dart';
+import '../../core/storage/storage_service.dart';
+import '../../core/realtime/connection_service.dart';
 import '../../data/models/server.dart';
 import '../../data/models/room.dart';
 import '../../data/models/chat_message.dart';
@@ -19,8 +19,8 @@ class HomeScreen extends StatefulWidget {
   final ConnectionService connectionService;
 
   const HomeScreen({
-    super.key, 
-    required this.apiClient, 
+    super.key,
+    required this.apiClient,
     required this.connectionService,
   });
 
@@ -74,7 +74,12 @@ class _HomeScreenState extends State<HomeScreen> {
       storageService,
       (message) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         }
       },
     );
@@ -84,10 +89,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'online': return Colors.green;
-      case 'idle': return Colors.orange;
-      case 'dnd': return Colors.red;
-      default: return Colors.grey;
+      case 'online':
+        return Colors.green;
+      case 'idle':
+        return Colors.orange;
+      case 'dnd':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -131,11 +140,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (type.startsWith("video/")) return true;
     final ext = name.split('.').last;
-    return ["mp4", "mov", "wmv", "avi", "avchd", "flv", "f4v", "swf", "mkv", "webm"].contains(ext);
+    return [
+      "mp4",
+      "mov",
+      "wmv",
+      "avi",
+      "avchd",
+      "flv",
+      "f4v",
+      "swf",
+      "mkv",
+      "webm",
+    ].contains(ext);
   }
 
   void _scrollListener() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       _controller.loadMoreMessages();
     }
   }
@@ -174,12 +195,12 @@ class _HomeScreenState extends State<HomeScreen> {
               builder: (context, isDirect, _) {
                 final title = isDirect
                     ? _controller.currentDirectRoom.value?.getDisplayName(
-                          _controller.currentUserId ?? "",
-                        ) ??
-                        'Direct Message'
+                            _controller.currentUserId ?? "",
+                          ) ??
+                          'Direct Message'
                     : _controller.currentRoom.value?.name ??
-                        _controller.currentServer.value?.name ??
-                        'Gritos';
+                          _controller.currentServer.value?.name ??
+                          'Gritos';
                 final subtitle = sfu == null
                     ? (isDirect ? 'Direct chat' : 'Messages and rooms')
                     : 'WebRTC ${_webrtcLabel(sfu.connectionStateListenable.value)}';
@@ -191,7 +212,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.68),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.68),
                       ),
                     ),
                   ],
@@ -289,7 +312,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
               border: Border.all(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.2),
                 width: 2,
               ),
             ),
@@ -315,9 +340,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text(
                         'Incoming Call',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       Text(
                         call.initiatorNickname ?? 'Someone is calling...',
@@ -375,7 +399,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.08),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.shadow.withValues(alpha: 0.08),
                     blurRadius: 18,
                     offset: const Offset(0, 8),
                   ),
@@ -389,7 +415,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         width: 42,
                         height: 42,
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Icon(
@@ -423,7 +451,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                       color: color,
                                     ),
                                     ValueListenableBuilder<int>(
-                                      valueListenable: sfu.remoteAudioTrackCount,
+                                      valueListenable:
+                                          sfu.remoteAudioTrackCount,
                                       builder: (context, remoteAudioCount, _) {
                                         return _buildInfoChip(
                                           context,
@@ -433,7 +462,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                               : 'Waiting for audio',
                                           color: remoteAudioCount > 0
                                               ? const Color(0xFF14B86A)
-                                              : Theme.of(context).colorScheme.outline,
+                                              : Theme.of(
+                                                  context,
+                                                ).colorScheme.outline,
                                         );
                                       },
                                     ),
@@ -455,7 +486,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           builder: (context, isMuted, _) {
                             return _buildCallAction(
                               context,
-                              icon: isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                              icon: isMuted
+                                  ? Icons.mic_off_rounded
+                                  : Icons.mic_rounded,
                               label: isMuted ? 'Mic off' : 'Mic on',
                               active: !isMuted,
                               onTap: _controller.toggleMic,
@@ -470,7 +503,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           builder: (context, isOff, _) {
                             return _buildCallAction(
                               context,
-                              icon: isOff ? Icons.videocam_off_rounded : Icons.videocam_rounded,
+                              icon: isOff
+                                  ? Icons.videocam_off_rounded
+                                  : Icons.videocam_rounded,
                               label: isOff ? 'Camera off' : 'Camera on',
                               active: !isOff,
                               onTap: _controller.toggleCamera,
@@ -527,23 +562,29 @@ class _HomeScreenState extends State<HomeScreen> {
                         builder: (context, speakers, _) {
                           final isSpeaking = speakers.contains(userId);
                           return Container(
-                            margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+                            margin: const EdgeInsets.only(
+                              right: 12,
+                              top: 8,
+                              bottom: 8,
+                            ),
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             decoration: BoxDecoration(
-                              color: isSpeaking 
-                                  ? Colors.green.withValues(alpha: 0.2) 
+                              color: isSpeaking
+                                  ? Colors.green.withValues(alpha: 0.2)
                                   : Theme.of(context).colorScheme.surface,
                               borderRadius: BorderRadius.circular(20),
-                              border: isSpeaking 
+                              border: isSpeaking
                                   ? Border.all(color: Colors.green, width: 2)
                                   : null,
                             ),
                             child: Row(
                               children: [
                                 Icon(
-                                  isCameraOff ? Icons.person_off : Icons.person, 
+                                  isCameraOff ? Icons.person_off : Icons.person,
                                   size: 16,
-                                  color: isSpeaking ? Theme.of(context).colorScheme.secondary : null,
+                                  color: isSpeaking
+                                      ? Theme.of(context).colorScheme.secondary
+                                      : null,
                                 ),
                                 const SizedBox(width: 8),
                                 ValueListenableBuilder<int>(
@@ -553,14 +594,20 @@ class _HomeScreenState extends State<HomeScreen> {
                                       _controller.getNickname(userId),
                                       style: TextStyle(
                                         fontSize: 12,
-                                        fontWeight: isSpeaking ? FontWeight.bold : FontWeight.normal,
+                                        fontWeight: isSpeaking
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                       ),
                                     );
                                   },
                                 ),
                                 if (isMuted) ...[
                                   const SizedBox(width: 4),
-                                  const Icon(Icons.mic_off, size: 12, color: Colors.red),
+                                  const Icon(
+                                    Icons.mic_off,
+                                    size: 12,
+                                    color: Colors.red,
+                                  ),
                                 ],
                               ],
                             ),
@@ -587,11 +634,19 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
           child: Row(
             children: [
-              const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+              const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
               const SizedBox(width: 8),
               Text(
                 "${users.length} user${users.length > 1 ? 's are' : ' is'} typing...",
-                style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey,
+                ),
               ),
             ],
           ),
@@ -608,7 +663,10 @@ class _HomeScreenState extends State<HomeScreen> {
           UserAccountsDrawerHeader(
             accountName: ValueListenableBuilder(
               valueListenable: _controller.currentUser,
-              builder: (_, user, _) => Text(user?.nickname ?? 'Loading...', style: const TextStyle(fontWeight: FontWeight.bold)),
+              builder: (_, user, _) => Text(
+                user?.nickname ?? 'Loading...',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
             accountEmail: ValueListenableBuilder(
               valueListenable: _controller.currentUser,
@@ -624,7 +682,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(user?.status.toUpperCase() ?? "", style: const TextStyle(fontSize: 12)),
+                  Text(
+                    user?.status.toUpperCase() ?? "",
+                    style: const TextStyle(fontSize: 12),
+                  ),
                 ],
               ),
             ),
@@ -642,14 +703,22 @@ class _HomeScreenState extends State<HomeScreen> {
                       }
                       return CircleAvatar(
                         backgroundColor: Theme.of(context).colorScheme.primary,
-                        child: const Icon(Icons.person, size: 40, color: Colors.white),
+                        child: const Icon(
+                          Icons.person,
+                          size: 40,
+                          color: Colors.white,
+                        ),
                       );
                     },
                   );
                 }
                 return CircleAvatar(
                   backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: const Icon(Icons.person, size: 40, color: Colors.white),
+                  child: const Icon(
+                    Icons.person,
+                    size: 40,
+                    color: Colors.white,
+                  ),
                 );
               },
             ),
@@ -662,7 +731,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ListTile(
                   leading: const Icon(Icons.people_alt_rounded),
                   title: const Text('Friends'),
-                  onTap: () { Navigator.pop(context); Navigator.pushNamed(context, '/friends'); },
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/friends');
+                  },
                 ),
                 const Divider(),
                 _buildServersList(),
@@ -674,7 +746,10 @@ class _HomeScreenState extends State<HomeScreen> {
           const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.logout_rounded, color: Colors.red),
-            title: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            title: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
             onTap: () async {
               await _controller.logout();
               if (mounted) Navigator.pushReplacementNamed(context, '/login');
@@ -692,21 +767,42 @@ class _HomeScreenState extends State<HomeScreen> {
         return Column(
           children: servers.map((server) {
             return ExpansionTile(
-              title: Text(server.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+              title: Text(
+                server.name,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
               leading: const Icon(Icons.dns_rounded),
-              tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-              onExpansionChanged: (exp) { if (exp) _controller.selectServer(server); },
+              tilePadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 6,
+              ),
+              onExpansionChanged: (exp) {
+                if (exp) _controller.selectServer(server);
+              },
               children: [
                 ValueListenableBuilder<List<Room>>(
                   valueListenable: _controller.rooms,
                   builder: (context, rooms, _) {
                     return Column(
-                      children: rooms.map((room) => ListTile(
-                        contentPadding: const EdgeInsets.fromLTRB(48, 6, 20, 6),
-                        title: Text(room.name),
-                        selected: _controller.currentRoom.value?.id == room.id,
-                        onTap: () { _controller.selectRoom(room); Navigator.pop(context); },
-                      )).toList(),
+                      children: rooms
+                          .map(
+                            (room) => ListTile(
+                              contentPadding: const EdgeInsets.fromLTRB(
+                                48,
+                                6,
+                                20,
+                                6,
+                              ),
+                              title: Text(room.name),
+                              selected:
+                                  _controller.currentRoom.value?.id == room.id,
+                              onTap: () {
+                                _controller.selectRoom(room);
+                                Navigator.pop(context);
+                              },
+                            ),
+                          )
+                          .toList(),
                     );
                   },
                 ),
@@ -724,7 +820,15 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text('DIRECT MESSAGES', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.1)),
+          child: Text(
+            'DIRECT MESSAGES',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+              letterSpacing: 1.1,
+            ),
+          ),
         ),
         ValueListenableBuilder<List<DirectRoom>>(
           valueListenable: _controller.directRooms,
@@ -733,10 +837,18 @@ class _HomeScreenState extends State<HomeScreen> {
               children: dms.map((dm) {
                 return ListTile(
                   leading: const Icon(Icons.alternate_email_rounded, size: 20),
-                  title: Text(dm.getDisplayName(_controller.currentUserId ?? "")),
+                  title: Text(
+                    dm.getDisplayName(_controller.currentUserId ?? ""),
+                  ),
                   selected: _controller.currentDirectRoom.value?.id == dm.id,
-                  onTap: () { _controller.selectDirectRoom(dm); Navigator.pop(context); },
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                  onTap: () {
+                    _controller.selectDirectRoom(dm);
+                    Navigator.pop(context);
+                  },
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 6,
+                  ),
                 );
               }).toList(),
             );
@@ -771,8 +883,11 @@ class _HomeScreenState extends State<HomeScreen> {
             if (index == messages.length) {
               return ValueListenableBuilder<bool>(
                 valueListenable: _controller.isLoadingMore,
-                builder: (_, loading, child) => loading 
-                    ? const Padding(padding: EdgeInsets.all(8), child: Center(child: CircularProgressIndicator())) 
+                builder: (_, loading, child) => loading
+                    ? const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
                     : const SizedBox.shrink(),
               );
             }
@@ -786,14 +901,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMessageTile(ChatMessage msg, bool isMe) {
-    final hasAttachments = msg.attachments != null && msg.attachments!.isNotEmpty;
+    final hasAttachments =
+        msg.attachments != null && msg.attachments!.isNotEmpty;
     final hasMediaUrl = msg.mediaUrl != null && msg.mediaUrl!.isNotEmpty;
     final isSending = msg.status == "sending";
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.8,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -806,15 +924,21 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Card(
                 margin: const EdgeInsets.symmetric(vertical: 2),
                 elevation: 0,
-                color: isMe 
-                    ? Theme.of(context).colorScheme.primary.withValues(alpha: isSending ? 0.08 : 0.15)
+                color: isMe
+                    ? Theme.of(context).colorScheme.primary.withValues(
+                        alpha: isSending ? 0.08 : 0.15,
+                      )
                     : Theme.of(context).cardColor,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(16),
                     topRight: const Radius.circular(16),
-                    bottomLeft: isMe ? const Radius.circular(16) : const Radius.circular(4),
-                    bottomRight: isMe ? const Radius.circular(4) : const Radius.circular(16),
+                    bottomLeft: isMe
+                        ? const Radius.circular(16)
+                        : const Radius.circular(4),
+                    bottomRight: isMe
+                        ? const Radius.circular(4)
+                        : const Radius.circular(16),
                   ),
                 ),
                 child: InkWell(
@@ -831,36 +955,69 @@ class _HomeScreenState extends State<HomeScreen> {
                             padding: const EdgeInsets.only(bottom: 4.0),
                             child: Text(
                               _controller.getNickname(msg.senderId),
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Theme.of(context).colorScheme.primary),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                             ),
                           ),
-                        if (msg.content.isNotEmpty) Text(msg.content, style: const TextStyle(fontSize: 15)),
-                        if (hasAttachments) ...msg.attachments!.map((a) => _buildAttachment(a)),
-                        if (!hasAttachments && hasMediaUrl) 
+                        if (msg.content.isNotEmpty)
+                          Text(
+                            msg.content,
+                            style: const TextStyle(fontSize: 15),
+                          ),
+                        if (hasAttachments)
+                          ...msg.attachments!.map((a) => _buildAttachment(a)),
+                        if (!hasAttachments && hasMediaUrl)
                           _buildAttachment({
-                            "original_name": msg.content.isNotEmpty ? msg.content : "File",
+                            "original_name": msg.content.isNotEmpty
+                                ? msg.content
+                                : "File",
                             "url": msg.mediaUrl!,
                             "size_bytes": 0,
-                            "content_type": msg.type == "image" ? "image/jpeg" : "application/octet-stream",
+                            "content_type": msg.type == "image"
+                                ? "image/jpeg"
+                                : "application/octet-stream",
                           }),
                         const SizedBox(height: 4),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (msg.pinnedAt != null) 
-                              const Padding(padding: EdgeInsets.only(right: 4.0), child: Icon(Icons.push_pin_rounded, size: 10, color: Colors.orange)),
+                            if (msg.pinnedAt != null)
+                              const Padding(
+                                padding: EdgeInsets.only(right: 4.0),
+                                child: Icon(
+                                  Icons.push_pin_rounded,
+                                  size: 10,
+                                  color: Colors.orange,
+                                ),
+                              ),
                             Text(
                               "${msg.createdAt.hour}:${msg.createdAt.minute.toString().padLeft(2, '0')}",
-                              style: TextStyle(fontSize: 10, color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.5)),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.color
+                                    ?.withValues(alpha: 0.5),
+                              ),
                             ),
-                            if (isMe) 
+                            if (isMe)
                               Padding(
                                 padding: const EdgeInsets.only(left: 4.0),
                                 child: Icon(
-                                  isSending ? Icons.access_time_rounded : (msg.status == "read" ? Icons.done_all_rounded : Icons.done_rounded), 
-                                  size: 14, 
-                                  color: msg.status == "read" ? Colors.blue : Colors.grey,
+                                  isSending
+                                      ? Icons.access_time_rounded
+                                      : (msg.status == "read"
+                                            ? Icons.done_all_rounded
+                                            : Icons.done_rounded),
+                                  size: 14,
+                                  color: msg.status == "read"
+                                      ? Colors.blue
+                                      : Colors.grey,
                                 ),
                               ),
                           ],
@@ -905,25 +1062,36 @@ class _HomeScreenState extends State<HomeScreen> {
     return CircleAvatar(
       radius: 16,
       backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-      child: Icon(Icons.person, size: 20, color: Theme.of(context).colorScheme.onPrimaryContainer),
+      child: Icon(
+        Icons.person,
+        size: 20,
+        color: Theme.of(context).colorScheme.onPrimaryContainer,
+      ),
     );
   }
 
   Widget _buildAttachment(dynamic a) {
     final isImage = _isImage(a);
     final isVideo = _isVideo(a);
-    
+
     final String urlStr = (a is Map ? a['url'] : a.url) ?? "";
-    final fullUrl = urlStr.startsWith("http") ? urlStr : "${widget.apiClient.baseUrl}$urlStr";
-    final String originalName = (a is Map ? (a['original_name'] ?? a['originalName']) : a.originalName) ?? "File";
-    final int sizeBytes = (a is Map ? (a['size_bytes'] ?? a['sizeBytes']) : a.sizeBytes) ?? 0;
+    final fullUrl = urlStr.startsWith("http")
+        ? urlStr
+        : "${widget.apiClient.baseUrl}$urlStr";
+    final String originalName =
+        (a is Map
+            ? (a['original_name'] ?? a['originalName'])
+            : a.originalName) ??
+        "File";
+    final int sizeBytes =
+        (a is Map ? (a['size_bytes'] ?? a['sizeBytes']) : a.sizeBytes) ?? 0;
 
     return Padding(
       padding: const EdgeInsets.only(top: 8.0),
       child: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).brightness == Brightness.dark 
-              ? Colors.white.withValues(alpha: 0.05) 
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white.withValues(alpha: 0.05)
               : Colors.black.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -941,24 +1109,32 @@ class _HomeScreenState extends State<HomeScreen> {
                       height: 180,
                       width: double.infinity,
                       color: Colors.black12,
-                      child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                      child: const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                     );
                   }
                   if (snapshot.hasData && snapshot.data != null) {
                     return ConstrainedBox(
                       constraints: const BoxConstraints(maxHeight: 400),
                       child: Image.memory(
-                        snapshot.data!, 
+                        snapshot.data!,
                         fit: BoxFit.cover,
                         width: double.infinity,
                       ),
                     );
                   }
                   return Container(
-                    height: 100, 
+                    height: 100,
                     width: double.infinity,
                     color: Theme.of(context).colorScheme.errorContainer,
-                    child: const Center(child: Icon(Icons.broken_image, size: 32, color: Colors.grey))
+                    child: const Center(
+                      child: Icon(
+                        Icons.broken_image,
+                        size: 32,
+                        color: Colors.grey,
+                      ),
+                    ),
                   );
                 },
               )
@@ -970,7 +1146,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: const Stack(
                   alignment: Alignment.center,
                   children: [
-                    Icon(Icons.play_circle_fill_rounded, size: 64, color: Colors.white70),
+                    Icon(
+                      Icons.play_circle_fill_rounded,
+                      size: 64,
+                      color: Colors.white70,
+                    ),
                   ],
                 ),
               ),
@@ -981,11 +1161,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
-                      isImage ? Icons.image_rounded : isVideo ? Icons.movie_rounded : Icons.insert_drive_file_rounded, 
+                      isImage
+                          ? Icons.image_rounded
+                          : isVideo
+                          ? Icons.movie_rounded
+                          : Icons.insert_drive_file_rounded,
                       color: Theme.of(context).colorScheme.primary,
                       size: 20,
                     ),
@@ -996,35 +1182,70 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          originalName, 
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), 
-                          overflow: TextOverflow.ellipsis
+                          originalName,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
                         if (sizeBytes > 0)
                           Text(
-                            _formatFileSize(sizeBytes), 
-                            style: TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.6)),
+                            _formatFileSize(sizeBytes),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.color
+                                  ?.withValues(alpha: 0.6),
+                            ),
                           )
                         else
                           FutureBuilder<Map<String, dynamic>?>(
                             future: widget.apiClient.getFileMetadata(fullUrl),
                             builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
                                 return Text(
                                   "Calculating...",
-                                  style: TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.4)),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.color
+                                        ?.withValues(alpha: 0.4),
+                                  ),
                                 );
                               }
-                              if (snapshot.hasData && snapshot.data != null && snapshot.data!['size'] != null && snapshot.data!['size'] > 0) {
+                              if (snapshot.hasData &&
+                                  snapshot.data != null &&
+                                  snapshot.data!['size'] != null &&
+                                  snapshot.data!['size'] > 0) {
                                 return Text(
                                   _formatFileSize(snapshot.data!['size']),
-                                  style: TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.6)),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.color
+                                        ?.withValues(alpha: 0.6),
+                                  ),
                                 );
                               }
                               return Text(
                                 "0 B",
-                                style: TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.4)),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.color
+                                      ?.withValues(alpha: 0.4),
+                                ),
                               );
                             },
                           ),
@@ -1033,12 +1254,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(width: 4),
                   IconButton(
-                    icon: const Icon(Icons.download_for_offline_rounded, size: 22),
+                    icon: const Icon(
+                      Icons.download_for_offline_rounded,
+                      size: 22,
+                    ),
                     tooltip: "Download",
                     visualDensity: VisualDensity.compact,
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Downloading $originalName..."), behavior: SnackBarBehavior.floating)
+                        SnackBar(
+                          content: Text("Downloading $originalName..."),
+                          behavior: SnackBarBehavior.floating,
+                        ),
                       );
                     },
                   ),
@@ -1064,7 +1291,9 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.06),
+              color: Theme.of(
+                context,
+              ).colorScheme.shadow.withValues(alpha: 0.06),
               blurRadius: 14,
               offset: const Offset(0, 6),
             ),
@@ -1081,8 +1310,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 final text = _messageTextController.text;
                 await _controller.pickAndSendFile(text);
                 if (mounted && text.isNotEmpty) {
-                   _messageTextController.clear();
-                   _controller.sendTypingIndicator(false);
+                  _messageTextController.clear();
+                  _controller.sendTypingIndicator(false);
                 }
               },
             ),
@@ -1095,9 +1324,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   hintText: 'Type a message...',
                   border: InputBorder.none,
                   filled: false,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 10,
+                  ),
                 ),
-                onChanged: (val) => _controller.sendTypingIndicator(val.isNotEmpty),
+                onChanged: (val) =>
+                    _controller.sendTypingIndicator(val.isNotEmpty),
                 onSubmitted: (_) => _send(),
               ),
             ),
@@ -1161,8 +1394,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final backgroundColor = danger
         ? Theme.of(context).colorScheme.error
         : active
-            ? Theme.of(context).colorScheme.primary
-            : Theme.of(context).colorScheme.surface;
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.surface;
     final foregroundColor = danger || active
         ? Colors.white
         : Theme.of(context).colorScheme.onSurface;
@@ -1208,8 +1441,12 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ValueListenableBuilder<List<MediaDeviceInfo>>(
             valueListenable: sfu.mediaDevices,
             builder: (context, devices, _) {
-              final audioInputs = devices.where((d) => d.kind == 'audioinput').toList();
-              final videoInputs = devices.where((d) => d.kind == 'videoinput').toList();
+              final audioInputs = devices
+                  .where((d) => d.kind == 'audioinput')
+                  .toList();
+              final videoInputs = devices
+                  .where((d) => d.kind == 'videoinput')
+                  .toList();
 
               return SingleChildScrollView(
                 child: Column(
@@ -1278,7 +1515,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           contentPadding: EdgeInsets.zero,
                           secondary: const Icon(Icons.spatial_audio_rounded),
                           title: const Text('Stereo capture'),
-                          subtitle: const Text('Requests 2-channel 48 kHz audio when the device supports it.'),
+                          subtitle: const Text(
+                            'Requests 2-channel 48 kHz audio when the device supports it.',
+                          ),
                           value: stereo,
                           onChanged: (value) => sfu.setStereoAudio(value),
                         );

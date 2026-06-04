@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:gritos_client/data/api/rest.dart';
-import 'package:gritos_client/data/api/event_transport.dart';
-import 'package:gritos_client/data/api/webtransport.dart';
-import 'package:gritos_client/data/api/websocket.dart';
-import 'package:gritos_client/services/storage_service.dart';
-import 'package:gritos_client/services/connection_service.dart';
+import 'package:gritos_client/core/realtime/event_transport.dart';
+import 'package:gritos_client/core/realtime/webtransport_transport.dart';
+import 'package:gritos_client/core/realtime/websocket_transport.dart';
+import 'package:gritos_client/core/storage/storage_service.dart';
+import 'package:gritos_client/core/realtime/connection_service.dart';
 import 'package:gritos_client/ui/screens/login_screen.dart';
 import 'package:gritos_client/ui/screens/home_screen.dart';
 import 'package:gritos_client/ui/screens/friends_screen.dart';
@@ -109,12 +109,14 @@ void main() async {
 Future<void> _initializeWebRtcAudio() async {
   if (!WebRTC.platformIsAndroid) return;
 
-  await WebRTC.initialize(options: {
-    'androidAudioConfiguration': AndroidAudioConfiguration.media.toMap(),
-    'bypassVoiceProcessing': true,
-    'audioSampleRate': 48000,
-    'audioOutputSampleRate': 48000,
-  });
+  await WebRTC.initialize(
+    options: {
+      'androidAudioConfiguration': AndroidAudioConfiguration.media.toMap(),
+      'bypassVoiceProcessing': true,
+      'audioSampleRate': 48000,
+      'audioOutputSampleRate': 48000,
+    },
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -185,10 +187,7 @@ class MyApp extends StatelessWidget {
       final scheme = ColorScheme.fromSeed(
         seedColor: const Color(0xFF136F63),
         brightness: brightness,
-      ).copyWith(
-        secondary: const Color(0xFFFFB703),
-        surface: surface,
-      );
+      ).copyWith(secondary: const Color(0xFFFFB703), surface: surface);
 
       return ThemeData(
         brightness: brightness,

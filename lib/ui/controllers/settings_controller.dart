@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../data/api/rest.dart';
-import '../../data/api/webtransport.dart';
-import '../../data/api/websocket.dart';
+import '../../core/realtime/webtransport_transport.dart';
+import '../../core/realtime/websocket_transport.dart';
 import '../../data/models/user.dart';
-import '../../services/connection_service.dart';
-import '../../services/storage_service.dart';
+import '../../core/realtime/connection_service.dart';
+import '../../core/storage/storage_service.dart';
 import '../../main.dart';
 
 class SettingsController {
@@ -18,13 +18,14 @@ class SettingsController {
   final errorMessage = ValueNotifier<String?>(null);
   final currentUser = ValueNotifier<User?>(null);
   final transportMode = ValueNotifier<String>('websocket');
-  
+
   String? _userId;
   StreamSubscription? _wsSubscription;
 
   // Connection status info
   String get currentTransport => connectionService.eventTransport.transportType;
-  String get connectionState => connectionService.eventTransport.connectionState;
+  String get connectionState =>
+      connectionService.eventTransport.connectionState;
 
   SettingsController(this.apiClient, this.connectionService);
 
@@ -41,9 +42,11 @@ class SettingsController {
       } else {
         errorMessage.value = "Failed to load profile.";
       }
-      
+
       _wsSubscription?.cancel();
-      _wsSubscription = connectionService.messageStream.listen(_handleWebSocketMessage);
+      _wsSubscription = connectionService.messageStream.listen(
+        _handleWebSocketMessage,
+      );
     } catch (e) {
       errorMessage.value = "Error: $e";
     }
@@ -84,7 +87,10 @@ class SettingsController {
       if (decoded['type'] == 'user_presence_updated') {
         final data = decoded['data'];
         if (data['user_id'] == _userId && currentUser.value != null) {
-          currentUser.value = User.fromJson({...currentUser.value!.toJson(), 'status': data['status']});
+          currentUser.value = User.fromJson({
+            ...currentUser.value!.toJson(),
+            'status': data['status'],
+          });
         }
       }
     } catch (_) {}

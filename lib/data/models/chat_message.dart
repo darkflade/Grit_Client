@@ -45,33 +45,41 @@ class ChatMessage {
       mediaUrl: json["media_url"],
       status: json["status"] ?? "sent",
       createdAt: DateTime.parse(json["created_at"]),
-      editedAt: json["edited_at"] != null ? DateTime.parse(json["edited_at"]) : null,
-      deletedAt: json["deleted_at"] != null ? DateTime.parse(json["deleted_at"]) : null,
+      editedAt: json["edited_at"] != null
+          ? DateTime.parse(json["edited_at"])
+          : null,
+      deletedAt: json["deleted_at"] != null
+          ? DateTime.parse(json["deleted_at"])
+          : null,
       deletedBy: json["deleted_by"],
-      pinnedAt: json["pinned_at"] != null ? DateTime.parse(json["pinned_at"]) : null,
+      pinnedAt: json["pinned_at"] != null
+          ? DateTime.parse(json["pinned_at"])
+          : null,
       pinnedBy: json["pinned_by"],
       attachments: json["attachments"] != null
-          ? (json["attachments"] as List).map((e) => Attachment.fromJson(e as Map<String, dynamic>)).toList()
+          ? (json["attachments"] as List)
+                .map((e) => Attachment.fromJson(e as Map<String, dynamic>))
+                .toList()
           : null,
       reactions: json["reactions"],
     );
   }
 
   Map<String, dynamic> toJson() => {
-        "id": id,
-        "room_id": roomId,
-        "sender_id": senderId,
-        "content": content,
-        "type": type,
-        "media_url": mediaUrl,
-        "status": status,
-        "created_at": createdAt.toIso8601String(),
-        "edited_at": editedAt?.toIso8601String(),
-        "deleted_at": deletedAt?.toIso8601String(),
-        "deleted_by": deletedBy,
-        "pinned_at": pinnedAt?.toIso8601String(),
-        "pinned_by": pinnedBy,
-        "attachments": attachments?.map((e) => e.toJson()).toList(),
-        "reactions": reactions,
-      };
+    "id": id,
+    "room_id": roomId,
+    "sender_id": senderId,
+    "content": content,
+    "type": type,
+    "media_url": mediaUrl,
+    "status": status,
+    "created_at": createdAt.toIso8601String(),
+    "edited_at": editedAt?.toIso8601String(),
+    "deleted_at": deletedAt?.toIso8601String(),
+    "deleted_by": deletedBy,
+    "pinned_at": pinnedAt?.toIso8601String(),
+    "pinned_by": pinnedBy,
+    "attachments": attachments?.map((e) => e.toJson()).toList(),
+    "reactions": reactions,
+  };
 }
