@@ -14,6 +14,7 @@ class WebTransportClient extends JsonEventTransport {
   void Function(Object error)? _onError;
   bool _isConnected = false;
   String _connectionState = "Disconnected";
+  static const _connectTimeout = Duration(seconds: 10);
 
   WebTransportClient({required this.apiClient}) {
     _channel.setMethodCallHandler(_handleNativeCall);
@@ -32,7 +33,9 @@ class WebTransportClient extends JsonEventTransport {
   Future<void> connect() async {
     _connectionState = "Connecting...";
     try {
-      final token = await apiClient.getWebTransportToken();
+      final token = await apiClient.getWebTransportToken().timeout(
+        _connectTimeout,
+      );
       final apiUri = Uri.parse(apiClient.baseUrl);
       final wtUri = Uri(
         scheme: "https",
@@ -41,10 +44,12 @@ class WebTransportClient extends JsonEventTransport {
         path: "/webtransport/global/register/$token",
       );
 
-      await _channel.invokeMethod<void>("connect", {
-        "url": wtUri.toString(),
-        "origin": apiUri.origin,
-      });
+      await _channel
+          .invokeMethod<void>("connect", {
+            "url": wtUri.toString(),
+            "origin": apiUri.origin,
+          })
+          .timeout(_connectTimeout);
       _isConnected = true;
       _connectionState = "Connected";
       _log.info(
@@ -52,6 +57,11 @@ class WebTransportClient extends JsonEventTransport {
         data: {'host': wtUri.host, 'port': wtUri.port, 'origin': apiUri.origin},
       );
     } catch (e) {
+      unawaited(
+        _channel.invokeMethod<void>("disconnect").catchError((error) {
+          _log.error('cleanup after connection failure failed', error: error);
+        }),
+      );
       _log.error('connection failed', error: e);
       _isConnected = false;
       _connectionState = "Error";

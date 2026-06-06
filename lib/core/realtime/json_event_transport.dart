@@ -90,6 +90,16 @@ abstract class JsonEventTransport implements EventTransport {
   }
 
   @override
+  void getServerParticipants(String serverId) {
+    sendCommand("get_server_participants", {"server_id": serverId});
+  }
+
+  @override
+  void getServerRooms(String serverId) {
+    sendCommand("get_server_rooms", {"server_id": serverId});
+  }
+
+  @override
   void getRoomMessages(String roomId, {int limit = 25, String? cursor}) {
     final data = <String, dynamic>{"room_id": roomId, "limit": limit};
     if (cursor != null) data["cursor"] = cursor;

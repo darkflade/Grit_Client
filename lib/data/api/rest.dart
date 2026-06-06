@@ -2,10 +2,12 @@ import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import 'dart:io';
 
 import '../models/friend_request.dart';
 import '../models/server.dart';
+import '../models/server_participant.dart';
 import '../models/room.dart';
 import '../models/user.dart';
 import '../models/direct_room.dart';
@@ -24,10 +26,12 @@ class ApiClient {
   ApiClient() : dio = Dio() {
     cookieJar = CookieJar();
     dio.interceptors.add(CookieManager(cookieJar));
+    dio.interceptors.add(_RetryInterceptor(dio));
 
     dio.options.baseUrl = baseUrl;
-    dio.options.connectTimeout = const Duration(seconds: 10);
-    dio.options.receiveTimeout = const Duration(seconds: 10);
+    dio.options.connectTimeout = const Duration(seconds: 8);
+    dio.options.sendTimeout = const Duration(seconds: 10);
+    dio.options.receiveTimeout = const Duration(seconds: 12);
     dio.options.headers = {
       "Accept": "application/json",
       "Content-Type": "application/json",
@@ -168,6 +172,20 @@ class ApiClient {
       debugPrint("Error in getRooms: $e");
     }
     return [];
+  }
+
+  Future<ServerParticipantsResponse?> getServerParticipants(
+    String serverId,
+  ) async {
+    try {
+      final res = await dio.get("/api/servers/$serverId/participants");
+      if (res.statusCode == 200 && res.data is Map<String, dynamic>) {
+        return ServerParticipantsResponse.fromJson(res.data);
+      }
+    } catch (e) {
+      debugPrint("Error in getServerParticipants: $e");
+    }
+    return null;
   }
 
   Future<MessagePage?> getRoomMessages(
@@ -529,5 +547,86 @@ class ApiClient {
       debugPrint("Error fetching metadata for $fullUrl: $e");
     }
     return null;
+  }
+}
+
+class _RetryInterceptor extends QueuedInterceptor {
+  static const _maxRetries = 2;
+  static const _retryableMethods = {
+    'GET',
+    'HEAD',
+    'OPTIONS',
+    'PUT',
+    'PATCH',
+    'DELETE',
+  };
+
+  final Dio _dio;
+
+  _RetryInterceptor(this._dio);
+
+  @override
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
+    final request = err.requestOptions;
+    final retryCount = request.extra['retry_count'] as int? ?? 0;
+
+    if (retryCount >= _maxRetries ||
+        !_canRetry(request) ||
+        !_isTransient(err)) {
+      handler.next(err);
+      return;
+    }
+
+    request.extra['retry_count'] = retryCount + 1;
+    await Future<void>.delayed(_retryDelay(retryCount));
+
+    try {
+      final response = await _dio.fetch<dynamic>(request);
+      handler.resolve(response);
+    } on DioException catch (e) {
+      handler.next(e);
+    } catch (e) {
+      handler.next(
+        DioException(
+          requestOptions: request,
+          error: e,
+          type: DioExceptionType.unknown,
+        ),
+      );
+    }
+  }
+
+  bool _canRetry(RequestOptions request) {
+    if (!_retryableMethods.contains(request.method.toUpperCase())) {
+      return false;
+    }
+    return request.data is! FormData;
+  }
+
+  bool _isTransient(DioException err) {
+    final statusCode = err.response?.statusCode;
+    if (statusCode == 429 || (statusCode != null && statusCode >= 500)) {
+      return true;
+    }
+
+    if (err.type == DioExceptionType.connectionTimeout ||
+        err.type == DioExceptionType.sendTimeout ||
+        err.type == DioExceptionType.receiveTimeout ||
+        err.type == DioExceptionType.connectionError) {
+      return true;
+    }
+
+    final error = err.error;
+    return error is SocketException ||
+        error is HandshakeException ||
+        error is TimeoutException;
+  }
+
+  Duration _retryDelay(int retryCount) {
+    const delays = [Duration(milliseconds: 350), Duration(milliseconds: 900)];
+    return delays[retryCount.clamp(0, delays.length - 1)];
   }
 }

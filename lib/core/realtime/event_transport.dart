@@ -36,6 +36,8 @@ abstract class EventTransport {
   void directCallDecline(String roomId, String callId);
 
   // Snapshot requests
+  void getServerParticipants(String serverId);
+  void getServerRooms(String serverId);
   void getRoomMessages(String roomId, {int limit = 25, String? cursor});
   void getDirectMessages(String roomId, {int limit = 25, String? cursor});
 

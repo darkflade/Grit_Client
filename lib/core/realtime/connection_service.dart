@@ -23,6 +23,7 @@ class ConnectionService {
   bool _reconnectScheduled = false;
   int _reconnectAttempt = 0;
   Timer? _reconnectTimer;
+  static const _connectTimeout = Duration(seconds: 10);
 
   final Set<String> _subscribedServerIds = {};
   final Map<String, String> _joinedRooms = {};
@@ -53,7 +54,7 @@ class ConnectionService {
     _manualDisconnect = false;
     _isConnecting = true;
     try {
-      await eventTransport.connect();
+      await eventTransport.connect().timeout(_connectTimeout);
       _isConnected = true;
       _isConnecting = false;
       _reconnectAttempt = 0;
@@ -155,6 +156,14 @@ class ConnectionService {
   void subscribeServer(String serverId) {
     _subscribedServerIds.add(serverId);
     eventTransport.subscribeServer(serverId);
+  }
+
+  void getServerParticipants(String serverId) {
+    eventTransport.getServerParticipants(serverId);
+  }
+
+  void getServerRooms(String serverId) {
+    eventTransport.getServerRooms(serverId);
   }
 
   void unsubscribeServer(String serverId) {

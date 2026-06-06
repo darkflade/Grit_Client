@@ -13,6 +13,7 @@ import '../../data/models/room.dart';
 import '../../data/models/chat_message.dart';
 import '../../data/models/direct_room.dart';
 import '../../data/models/user.dart';
+import '../../data/models/server_participant.dart';
 
 class HomeScreen extends StatefulWidget {
   final ApiClient apiClient;
@@ -187,46 +188,58 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-        title: ValueListenableBuilder<WebRtcSfuService?>(
-          valueListenable: _controller.activeSfuService,
-          builder: (context, sfu, _) {
-            return ValueListenableBuilder<bool>(
-              valueListenable: _controller.isDirectChat,
-              builder: (context, isDirect, _) {
-                final title = isDirect
-                    ? _controller.currentDirectRoom.value?.getDisplayName(
-                            _controller.currentUserId ?? "",
-                          ) ??
-                          'Direct Message'
-                    : _controller.currentRoom.value?.name ??
-                          _controller.currentServer.value?.name ??
-                          'Gritos';
-                final subtitle = sfu == null
-                    ? (isDirect ? 'Direct chat' : 'Messages and rooms')
-                    : 'WebRTC ${_webrtcLabel(sfu.connectionStateListenable.value)}';
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(title, overflow: TextOverflow.ellipsis),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.68),
-                      ),
-                    ),
-                  ],
-                );
-              },
+        title: AnimatedBuilder(
+          animation: Listenable.merge([
+            _controller.activeSfuService,
+            _controller.isDirectChat,
+            _controller.currentServer,
+            _controller.currentRoom,
+            _controller.currentDirectRoom,
+          ]),
+          builder: (context, _) {
+            final sfu = _controller.activeSfuService.value;
+            final isDirect = _controller.isDirectChat.value;
+            final title = isDirect
+                ? _controller.currentDirectRoom.value?.getDisplayName(
+                        _controller.currentUserId ?? "",
+                      ) ??
+                      'Direct Message'
+                : _controller.currentRoom.value?.name ??
+                      _controller.currentServer.value?.name ??
+                      'Gritos';
+            final subtitle = sfu == null
+                ? (isDirect
+                      ? 'Direct chat'
+                      : (_controller.currentRoom.value == null
+                            ? 'Server overview'
+                            : 'Messages and rooms'))
+                : 'WebRTC ${_webrtcLabel(sfu.connectionStateListenable.value)}';
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, overflow: TextOverflow.ellipsis),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.68),
+                  ),
+                ),
+              ],
             );
           },
         ),
         actions: [
-          ValueListenableBuilder<bool>(
-            valueListenable: _controller.isDirectChat,
-            builder: (context, isDirect, _) {
+          AnimatedBuilder(
+            animation: Listenable.merge([
+              _controller.isDirectChat,
+              _controller.currentDirectRoom,
+              _controller.currentRoom,
+            ]),
+            builder: (context, _) {
+              final isDirect = _controller.isDirectChat.value;
               if (isDirect && _controller.currentDirectRoom.value != null) {
                 return IconButton(
                   icon: const Icon(Icons.call_rounded),
@@ -263,27 +276,56 @@ class _HomeScreenState extends State<HomeScreen> {
       drawer: _buildDrawer(),
       body: Stack(
         children: [
-          Column(
-            children: [
-              _buildActiveCallBar(),
-              Expanded(
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: _controller.isLoading,
-                  builder: (context, isLoading, child) {
-                    if (isLoading && _controller.chatMessages.value.isEmpty) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    return child!;
-                  },
-                  child: _buildMessagesView(),
-                ),
-              ),
-              _buildTypingIndicator(),
-              _buildInputArea(),
-            ],
+          AnimatedBuilder(
+            animation: Listenable.merge([
+              _controller.isLoading,
+              _controller.currentServer,
+              _controller.currentRoom,
+              _controller.currentDirectRoom,
+              _controller.isDirectChat,
+            ]),
+            builder: (context, _) {
+              final chatActive = _isChatActive();
+              return Column(
+                children: [
+                  _buildActiveCallBar(),
+                  Expanded(child: _buildPrimaryContent()),
+                  if (chatActive) _buildTypingIndicator(),
+                  if (chatActive) _buildInputArea(),
+                ],
+              );
+            },
           ),
           _buildIncomingCallOverlay(),
         ],
+      ),
+    );
+  }
+
+  bool _isChatActive() {
+    return _controller.isDirectChat.value ||
+        _controller.currentRoom.value != null;
+  }
+
+  Widget _buildPrimaryContent() {
+    if (_controller.isLoading.value &&
+        _controller.chatMessages.value.isEmpty &&
+        _controller.rooms.value.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_isChatActive()) return _buildMessagesView();
+
+    if (_controller.currentServer.value != null) {
+      return _buildServerOverview();
+    }
+
+    return Center(
+      child: Text(
+        'Select a server or direct message.',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }
@@ -665,7 +707,10 @@ class _HomeScreenState extends State<HomeScreen> {
               valueListenable: _controller.currentUser,
               builder: (_, user, _) => Text(
                 user?.nickname ?? 'Loading...',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             accountEmail: ValueListenableBuilder(
@@ -684,7 +729,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 8),
                   Text(
                     user?.status.toUpperCase() ?? "",
-                    style: const TextStyle(fontSize: 12),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -722,7 +770,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
-            decoration: BoxDecoration(color: Theme.of(context).cardColor),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHigh,
+            ),
           ),
           Expanded(
             child: ListView(
@@ -765,50 +815,51 @@ class _HomeScreenState extends State<HomeScreen> {
       valueListenable: _controller.servers,
       builder: (context, servers, _) {
         return Column(
-          children: servers.map((server) {
-            return ExpansionTile(
-              title: Text(
-                server.name,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              leading: const Icon(Icons.dns_rounded),
-              tilePadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 6,
-              ),
-              onExpansionChanged: (exp) {
-                if (exp) _controller.selectServer(server);
-              },
-              children: [
-                ValueListenableBuilder<List<Room>>(
-                  valueListenable: _controller.rooms,
-                  builder: (context, rooms, _) {
-                    return Column(
-                      children: rooms
-                          .map(
-                            (room) => ListTile(
-                              contentPadding: const EdgeInsets.fromLTRB(
-                                48,
-                                6,
-                                20,
-                                6,
-                              ),
-                              title: Text(room.name),
-                              selected:
-                                  _controller.currentRoom.value?.id == room.id,
-                              onTap: () {
-                                _controller.selectRoom(room);
-                                Navigator.pop(context);
-                              },
-                            ),
-                          )
-                          .toList(),
-                    );
-                  },
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'SERVERS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  letterSpacing: 1.1,
                 ),
-              ],
-            );
-          }).toList(),
+              ),
+            ),
+            ...servers.map((server) {
+              return AnimatedBuilder(
+                animation: Listenable.merge([
+                  _controller.currentServer,
+                  _controller.currentRoom,
+                ]),
+                builder: (context, _) {
+                  final selected =
+                      _controller.currentServer.value?.id == server.id &&
+                      _controller.currentRoom.value == null &&
+                      !_controller.isDirectChat.value;
+                  return ListTile(
+                    title: Text(
+                      server.name,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    leading: const Icon(Icons.dns_rounded),
+                    selected: selected,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 6,
+                    ),
+                    onTap: () {
+                      _controller.selectServer(server);
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              );
+            }),
+          ],
         );
       },
     );
@@ -855,6 +906,231 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildServerOverview() {
+    final server = _controller.currentServer.value;
+    if (server == null) return const SizedBox.shrink();
+
+    return RefreshIndicator(
+      onRefresh: () async => _controller.selectServer(server),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        children: [
+          Row(
+            children: [
+              _buildServerIcon(server, radius: 30),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      server.name,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    ValueListenableBuilder<int>(
+                      valueListenable: _controller.serverOnlineCount,
+                      builder: (context, onlineCount, _) {
+                        final total =
+                            _controller.serverParticipants.value.length;
+                        return Text(
+                          '$onlineCount online / $total members',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildOverviewSectionHeader('Rooms'),
+          ValueListenableBuilder<List<Room>>(
+            valueListenable: _controller.rooms,
+            builder: (context, rooms, _) {
+              if (rooms.isEmpty) {
+                return _buildEmptyOverviewLine('No rooms yet.');
+              }
+              return Column(
+                children: rooms
+                    .map(
+                      (room) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          room.type == 'rtc'
+                              ? Icons.graphic_eq_rounded
+                              : Icons.tag_rounded,
+                        ),
+                        title: Text(room.name),
+                        subtitle: Text(room.type.toUpperCase()),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => _controller.selectRoom(room),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+          ),
+          const SizedBox(height: 18),
+          _buildOverviewSectionHeader('Members'),
+          ValueListenableBuilder<List<ServerParticipant>>(
+            valueListenable: _controller.serverParticipants,
+            builder: (context, participants, _) {
+              if (participants.isEmpty) {
+                return _buildEmptyOverviewLine('No members loaded.');
+              }
+              final sorted = List<ServerParticipant>.from(participants)
+                ..sort((a, b) {
+                  if (a.online != b.online) return a.online ? -1 : 1;
+                  return a.user.nickname.compareTo(b.user.nickname);
+                });
+              return Column(
+                children: sorted.map(_buildParticipantTile).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        title.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.1,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyOverviewLine(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildParticipantTile(ServerParticipant participant) {
+    final user = participant.user;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          _buildUserAvatar(user, radius: 20),
+          Positioned(
+            right: -1,
+            bottom: -1,
+            child: Container(
+              width: 11,
+              height: 11,
+              decoration: BoxDecoration(
+                color: participant.online
+                    ? _getStatusColor(user.status)
+                    : Colors.grey,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.surface,
+                  width: 2,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      title: Text(user.nickname, overflow: TextOverflow.ellipsis),
+      subtitle: Text(participant.member.role, overflow: TextOverflow.ellipsis),
+      trailing: participant.subscribed
+          ? Icon(
+              Icons.radio_button_checked_rounded,
+              size: 18,
+              color: Theme.of(context).colorScheme.primary,
+            )
+          : null,
+    );
+  }
+
+  Widget _buildServerIcon(Server server, {double radius = 20}) {
+    if (server.iconUrl != null && server.iconUrl!.isNotEmpty) {
+      return FutureBuilder<Uint8List?>(
+        future: widget.apiClient.getFileBytes(server.iconUrl!),
+        builder: (context, snapshot) {
+          if (snapshot.hasData && snapshot.data != null) {
+            return CircleAvatar(
+              radius: radius,
+              backgroundImage: MemoryImage(snapshot.data!),
+            );
+          }
+          return _defaultServerIcon(server.name, radius: radius);
+        },
+      );
+    }
+    return _defaultServerIcon(server.name, radius: radius);
+  }
+
+  Widget _defaultServerIcon(String name, {double radius = 20}) {
+    final label = name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase();
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onPrimaryContainer,
+          fontWeight: FontWeight.w800,
+          fontSize: radius * 0.8,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserAvatar(User user, {double radius = 16}) {
+    if (user.avatarUrl != null && user.avatarUrl!.isNotEmpty) {
+      return FutureBuilder<Uint8List?>(
+        future: widget.apiClient.getFileBytes(user.avatarUrl!),
+        builder: (context, snapshot) {
+          if (snapshot.hasData && snapshot.data != null) {
+            return CircleAvatar(
+              radius: radius,
+              backgroundImage: MemoryImage(snapshot.data!),
+            );
+          }
+          return _defaultUserAvatar(radius: radius);
+        },
+      );
+    }
+    return _defaultUserAvatar(radius: radius);
+  }
+
+  Widget _defaultUserAvatar({double radius = 16}) {
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+      child: Icon(
+        Icons.person_rounded,
+        size: radius,
+        color: Theme.of(context).colorScheme.onSecondaryContainer,
+      ),
     );
   }
 

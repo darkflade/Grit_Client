@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:gritos_client/data/api/rest.dart';
 import 'package:gritos_client/core/logging/app_logger.dart';
 import 'package:gritos_client/core/realtime/json_event_transport.dart';
@@ -10,6 +12,7 @@ class WsClient extends JsonEventTransport {
   WebSocketChannel? _channel;
   final ApiClient apiClient;
   String _connectionState = "Disconnected";
+  static const _connectTimeout = Duration(seconds: 8);
 
   WsClient({required this.apiClient});
 
@@ -36,15 +39,19 @@ class WsClient extends JsonEventTransport {
     final cookieHeader = cookies.map((c) => "${c.name}=${c.value}").join("; ");
 
     try {
-      _channel = IOWebSocketChannel.connect(
+      final channel = IOWebSocketChannel.connect(
         Uri.parse(baseUrl),
         headers: {"Cookie": cookieHeader},
         pingInterval: const Duration(seconds: 20),
-        connectTimeout: const Duration(seconds: 25),
+        connectTimeout: _connectTimeout,
       );
+      await channel.ready.timeout(_connectTimeout);
+      _channel = channel;
       _connectionState = "Connected";
       _log.info('connected', data: {'url': baseUrl});
     } catch (e) {
+      _channel?.sink.close();
+      _channel = null;
       _connectionState = "Error";
       _log.error('connection failed', error: e, data: {'url': baseUrl});
       rethrow;

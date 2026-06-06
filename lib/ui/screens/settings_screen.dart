@@ -78,16 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ValueListenableBuilder<bool>(
         valueListenable: _controller.isLoading,
         builder: (context, isLoading, _) {
-          if (isLoading && _controller.currentUser.value == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return ValueListenableBuilder<String?>(
-            valueListenable: _controller.errorMessage,
-            builder: (context, error, _) {
-              if (error != null) return Center(child: Text(error));
-              return _buildContent();
-            },
-          );
+          return _buildContent();
         },
       ),
     );
@@ -100,8 +91,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildConnectionStatus(),
+          ValueListenableBuilder<String?>(
+            valueListenable: _controller.errorMessage,
+            builder: (context, error, _) {
+              if (error == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  error,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 24),
           _buildSectionHeader('Profile'),
+          if (_controller.currentUser.value == null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: Text(
+                'Profile is unavailable offline.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
           _buildCard([
             _buildTextField('Nickname', _nicknameController),
             const Divider(height: 1),
@@ -153,6 +169,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _controller.isLoading.value ? null : _save,
+              style: ElevatedButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              ),
               child: const Text('Save Profile Changes'),
             ),
           ),

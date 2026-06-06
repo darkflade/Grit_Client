@@ -35,12 +35,14 @@ class SettingsController {
     try {
       transportMode.value =
           await storageService.getEventTransportMode() ?? 'websocket';
-      final user = await apiClient.getMe();
-      if (user != null) {
-        _userId = user.id;
-        currentUser.value = user;
-      } else {
-        errorMessage.value = "Failed to load profile.";
+      try {
+        final user = await apiClient.getMe();
+        if (user != null) {
+          _userId = user.id;
+          currentUser.value = user;
+        }
+      } catch (e) {
+        debugPrint("Settings profile load failed: $e");
       }
 
       _wsSubscription?.cancel();
@@ -61,6 +63,12 @@ class SettingsController {
     isLoading.value = true;
     errorMessage.value = null;
     try {
+      if (currentUser.value == null) {
+        errorMessage.value = "Profile changes require a connection.";
+        isLoading.value = false;
+        return false;
+      }
+
       final Map<String, dynamic> data = {};
       if (nickname != null) data['nickname'] = nickname;
       if (bio != null) data['bio'] = bio;
@@ -104,10 +112,12 @@ class SettingsController {
   Future<void> updateTransportMode(String mode) async {
     await storageService.saveEventTransportMode(mode);
     transportMode.value = mode;
-    connectionService.setTransport(
-      mode == 'webtransport'
-          ? WebTransportClient(apiClient: apiClient)
-          : WsClient(apiClient: apiClient),
+    unawaited(
+      connectionService.setTransport(
+        mode == 'webtransport'
+            ? WebTransportClient(apiClient: apiClient)
+            : WsClient(apiClient: apiClient),
+      ),
     );
   }
 

@@ -15,6 +15,7 @@ import '../../data/models/chat_message.dart';
 import '../../data/models/user.dart';
 import '../../data/models/direct_room.dart';
 import '../../data/models/message_page.dart';
+import '../../data/models/server_participant.dart';
 
 class IncomingCall {
   final String callId;
@@ -44,6 +45,8 @@ class HomeController {
   final currentServer = ValueNotifier<Server?>(null);
   final rooms = ValueNotifier<List<Room>>([]);
   final currentRoom = ValueNotifier<Room?>(null);
+  final serverParticipants = ValueNotifier<List<ServerParticipant>>([]);
+  final serverOnlineCount = ValueNotifier<int>(0);
   final directRooms = ValueNotifier<List<DirectRoom>>([]);
   final currentDirectRoom = ValueNotifier<DirectRoom?>(null);
   final chatMessages = ValueNotifier<List<ChatMessage>>([]);
@@ -124,6 +127,13 @@ class HomeController {
         if (srv != null) {
           await selectServer(srv, initialRoomId: lastRoomId);
         }
+      } else if (lastServerId != null) {
+        final srv = servers.value
+            .where((s) => s.id == lastServerId)
+            .firstOrNull;
+        if (srv != null) {
+          await selectServer(srv);
+        }
       } else if (fetchedServers.isNotEmpty) {
         await selectServer(fetchedServers.first);
       } else if (fetchedDirectRooms.isNotEmpty) {
@@ -202,9 +212,12 @@ class HomeController {
   Future<void> selectServer(Server server, {String? initialRoomId}) async {
     isLoading.value = true;
     currentServer.value = server;
+    currentRoom.value = null;
     currentDirectRoom.value = null;
     isDirectChat.value = false;
     rooms.value = [];
+    serverParticipants.value = [];
+    serverOnlineCount.value = 0;
     chatMessages.value = [];
     pinnedMessages.value = [];
     typingUsers.value = {};
@@ -213,15 +226,27 @@ class HomeController {
 
     try {
       connectionService.subscribeServer(server.id);
+      if (connectionService.isConnected) {
+        connectionService.getServerRooms(server.id);
+        connectionService.getServerParticipants(server.id);
+      }
+
       final fetchedRooms = await apiClient.getRooms(server.id);
       rooms.value = fetchedRooms;
+      await _loadServerParticipants(server.id);
 
-      if (fetchedRooms.isNotEmpty) {
-        final roomToSelect = initialRoomId != null
-            ? fetchedRooms.where((r) => r.id == initialRoomId).firstOrNull ??
-                  fetchedRooms.first
-            : fetchedRooms.first;
+      if (initialRoomId != null && fetchedRooms.isNotEmpty) {
+        final roomToSelect =
+            fetchedRooms.where((r) => r.id == initialRoomId).firstOrNull ??
+            fetchedRooms.first;
         await selectRoom(roomToSelect);
+      }
+
+      if (initialRoomId == null) {
+        await storageService.saveLastActiveChat(
+          serverId: server.id,
+          isDirect: false,
+        );
       }
     } catch (e) {
       errorMessage.value = "Error selecting server: $e";
@@ -274,11 +299,24 @@ class HomeController {
     isLoading.value = false;
   }
 
+  Future<void> _loadServerParticipants(String serverId) async {
+    final response = await apiClient.getServerParticipants(serverId);
+    if (response == null) return;
+    serverParticipants.value = response.participants;
+    serverOnlineCount.value = response.onlineCount;
+    for (final participant in response.participants) {
+      userCache[participant.user.id] = participant.user;
+    }
+    nicknameVersion.value++;
+  }
+
   Future<void> selectDirectRoom(DirectRoom dRoom) async {
     isLoading.value = true;
     currentDirectRoom.value = dRoom;
     currentServer.value = null;
     currentRoom.value = null;
+    serverParticipants.value = [];
+    serverOnlineCount.value = 0;
     isDirectChat.value = true;
     chatMessages.value = [];
     pinnedMessages.value = [];
@@ -720,6 +758,59 @@ class HomeController {
             _snapshotCompleter!.complete(MessagePage.fromJson(data));
           }
           break;
+        case 'server_participants':
+          if (data is Map && data['server_id'] == currentServer.value?.id) {
+            final response = ServerParticipantsResponse.fromJson(
+              Map<String, dynamic>.from(data),
+            );
+            serverParticipants.value = response.participants;
+            serverOnlineCount.value = response.onlineCount;
+            for (final participant in response.participants) {
+              userCache[participant.user.id] = participant.user;
+            }
+            nicknameVersion.value++;
+          }
+          break;
+        case 'server_rooms_snapshot':
+          if (data is Map && data['server_id'] == currentServer.value?.id) {
+            final rawRooms = data['rooms'];
+            if (rawRooms is List) {
+              rooms.value = rawRooms
+                  .map(
+                    (item) =>
+                        Room.fromJson(Map<String, dynamic>.from(item as Map)),
+                  )
+                  .toList();
+            }
+          }
+          break;
+        case 'room_created':
+        case 'room_updated':
+          if (data is Map && data['server_id'] == currentServer.value?.id) {
+            final room = Room.fromJson(Map<String, dynamic>.from(data));
+            final updated = List<Room>.from(rooms.value);
+            final index = updated.indexWhere((item) => item.id == room.id);
+            if (index >= 0) {
+              updated[index] = room;
+            } else {
+              updated.add(room);
+            }
+            rooms.value = updated;
+          }
+          break;
+        case 'room_deleted':
+          if (data is Map && data['server_id'] == currentServer.value?.id) {
+            final roomId = data['room_id'] ?? data['id'];
+            rooms.value = rooms.value
+                .where((room) => room.id != roomId)
+                .toList();
+            if (currentRoom.value?.id == roomId) {
+              currentRoom.value = null;
+              chatMessages.value = [];
+              pinnedMessages.value = [];
+            }
+          }
+          break;
         case 'room_chat_message':
           if (!isDirectChat.value && data['room_id'] == currentRoom.value?.id) {
             _processIncomingMessage(data);
@@ -941,6 +1032,8 @@ class HomeController {
     currentServer.dispose();
     rooms.dispose();
     currentRoom.dispose();
+    serverParticipants.dispose();
+    serverOnlineCount.dispose();
     directRooms.dispose();
     currentDirectRoom.dispose();
     chatMessages.dispose();
