@@ -24,13 +24,24 @@ info:
       The JSON payload itself uses the same envelope as WebSocket.
     - Server events use the same `{ "type": "...", "data": { ... } }` envelope. Broadcast events do not include
       a request `nonce`.
-    - The server sends WebSocket ping control frames. Clients should answer with pong frames.
-      WebTransport does not use a separate ping frame at the application layer.
+    - Heartbeat timeout is 25 seconds. WebSocket uses protocol ping control frames every 20 seconds;
+      clients must answer with WebSocket pong control frames.
+    - WebTransport heartbeat uses QUIC datagrams, not the length-prefixed JSON stream.
+      The server sends `{"type":"ping","ts":<unix_ms>}` datagrams every 20 seconds and closes
+      the session if no `pong` datagram is received within 25 seconds. Clients must answer each
+      ping datagram with `{"type":"pong","ts":<same_ts>}`. These heartbeat datagrams are transport
+      control messages and are not delivered through the application event envelope.
     - Incoming client messages are rate limited to 60 messages per minute per connection.
     - WebRTC SFU uses Unified Plan SDP. Clients should implement the polite side of perfect negotiation:
       rollback a local offer if a server `sfu_offer` arrives while the client is making an offer or is not stable.
     - SFU ICE uses Trickle ICE. End-of-candidates is represented by `data: null` in `sfu_ice_candidate`.
       ICE restart is requested with `sfu_ice_restart`; the restart itself is delivered as a normal server `sfu_offer`.
+    - Direct-call SFU flow is room-scoped by direct-room UUID:
+      `POST /api/direct/rooms/{room_id}/calls` creates the call session and broadcasts `direct_call_started`,
+      then both peers send `sfu_join` with the same direct-room UUID. The `sfu_joined` ack returns
+      `scope: direct` and intentionally does not include `session_id`. After `sfu_joined`, the client sends
+      the initial `sfu_offer`, completes trickle ICE, and treats `direct_call_ended` as the canonical
+      call-termination event for that direct room.
 defaultContentType: application/json
 tags:
   - name: connection
@@ -50,15 +61,11 @@ servers:
     url: api.diogen.space
     protocol: wss
     description: Production WebSocket endpoint.
-    security:
-      - accessTokenCookie: []
   productionWebTransport:
     url: api.diogen.space:7092
     protocol: https
     protocolVersion: HTTP/3
     description: Production WebTransport endpoint over HTTP/3/QUIC using one REST-issued registration token and one bidirectional stream with 4-byte big-endian length-prefixed JSON messages.
-    security:
-      - webTransportRegistrationToken: []
 #  local:
 #    url: 127.0.0.1:{port}
 #    protocol: ws
@@ -208,22 +215,124 @@ channels:
       - `N bytes` UTF-8 JSON payload
 
       The payload JSON is the same envelope documented for the WebSocket channel.
+
+      WebTransport heartbeat is carried out-of-band over QUIC datagrams. The server sends
+      `HeartbeatPingDatagram`; clients must answer with `HeartbeatPongDatagram` using the same
+      `ts` value. The heartbeat timeout is 25 seconds.
     servers:
       - productionWebTransport
-    publish: *sendClientCommandOperation
-    subscribe: *receiveServerEventOperation
+    publish:
+      operationId: sendClientCommandOverWebTransport
+      summary: Messages accepted by the server from the client
+      description: |
+        Commands sent by the client over the authenticated WebTransport session.
+        The JSON envelope and command set are identical to the WebSocket transport.
+      tags:
+        - name: servers
+        - name: rooms
+        - name: direct
+        - name: sfu
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribeServer'
+          - $ref: '#/components/messages/UnsubscribeServer'
+          - $ref: '#/components/messages/GetServerParticipants'
+          - $ref: '#/components/messages/GetServerRooms'
+          - $ref: '#/components/messages/GetRoomMessages'
+          - $ref: '#/components/messages/JoinRoom'
+          - $ref: '#/components/messages/LeaveRoom'
+          - $ref: '#/components/messages/GetRTCRoomParticipants'
+          - $ref: '#/components/messages/Chat'
+          - $ref: '#/components/messages/EditMessage'
+          - $ref: '#/components/messages/DeleteMessage'
+          - $ref: '#/components/messages/MarkMessageRead'
+          - $ref: '#/components/messages/PinMessage'
+          - $ref: '#/components/messages/UnpinMessage'
+          - $ref: '#/components/messages/TypingIndicatorCommand'
+          - $ref: '#/components/messages/GetDirectMessages'
+          - $ref: '#/components/messages/GetFriendRequests'
+          - $ref: '#/components/messages/DirectRoomCreate'
+          - $ref: '#/components/messages/DirectMessage'
+          - $ref: '#/components/messages/DirectMessageEdit'
+          - $ref: '#/components/messages/DirectMessageDelete'
+          - $ref: '#/components/messages/DirectMessageRead'
+          - $ref: '#/components/messages/DirectCallStart'
+          - $ref: '#/components/messages/DirectCallEnd'
+          - $ref: '#/components/messages/DirectCallDecline'
+          - $ref: '#/components/messages/SFUJoin'
+          - $ref: '#/components/messages/SFULeave'
+          - $ref: '#/components/messages/SFUOfferToServer'
+          - $ref: '#/components/messages/SFUAnswerToServer'
+          - $ref: '#/components/messages/SFUIceCandidateToServer'
+          - $ref: '#/components/messages/SFUIceRestartToServer'
+          - $ref: '#/components/messages/SFUParticipantMutedToServer'
+          - $ref: '#/components/messages/SFUParticipantUnmutedToServer'
+          - $ref: '#/components/messages/SFUActiveSpeakersToServer'
+          - $ref: '#/components/messages/SFUMediaStateToServer'
+    subscribe:
+      operationId: receiveServerEventOverWebTransport
+      summary: Messages pushed from the server to the client
+      description: |
+        Events delivered over the authenticated WebTransport session.
+        The event envelope and payloads are identical to the WebSocket transport.
+      tags:
+        - name: connection
+        - name: servers
+        - name: rooms
+        - name: direct
+        - name: sfu
+        - name: presence
+      message:
+        oneOf:
+          - $ref: '#/components/messages/SubscribedServerAck'
+          - $ref: '#/components/messages/UnsubscribedServerAck'
+          - $ref: '#/components/messages/ServerParticipants'
+          - $ref: '#/components/messages/ServerRoomsSnapshot'
+          - $ref: '#/components/messages/ServerUpdated'
+          - $ref: '#/components/messages/ServerMemberRemoved'
+          - $ref: '#/components/messages/ServerRoleUpdated'
+          - $ref: '#/components/messages/JoinedRoomAck'
+          - $ref: '#/components/messages/LeftRoomAck'
+          - $ref: '#/components/messages/RTCRoomParticipants'
+          - $ref: '#/components/messages/RoomCreated'
+          - $ref: '#/components/messages/RoomUpdated'
+          - $ref: '#/components/messages/RoomDeleted'
+          - $ref: '#/components/messages/RoomChatMessage'
+          - $ref: '#/components/messages/TypingIndicator'
+          - $ref: '#/components/messages/MessageUpdated'
+          - $ref: '#/components/messages/MessageDeleted'
+          - $ref: '#/components/messages/MessageStatusUpdated'
+          - $ref: '#/components/messages/MessagePinUpdated'
+          - $ref: '#/components/messages/MessageReactionUpdated'
+          - $ref: '#/components/messages/RoomMessagesSnapshot'
+          - $ref: '#/components/messages/DirectRoomCreated'
+          - $ref: '#/components/messages/DirectRoomUpdated'
+          - $ref: '#/components/messages/DirectRoomLeft'
+          - $ref: '#/components/messages/DirectMessagesSnapshot'
+          - $ref: '#/components/messages/DirectMessageCreated'
+          - $ref: '#/components/messages/DirectMessageUpdated'
+          - $ref: '#/components/messages/DirectMessageDeleted'
+          - $ref: '#/components/messages/DirectMessageStatusUpdated'
+          - $ref: '#/components/messages/DirectCallStarted'
+          - $ref: '#/components/messages/DirectCallEnded'
+          - $ref: '#/components/messages/DirectCallDeclined'
+          - $ref: '#/components/messages/FriendRequestsSnapshot'
+          - $ref: '#/components/messages/FriendRequestReceived'
+          - $ref: '#/components/messages/FriendRequestAccepted'
+          - $ref: '#/components/messages/FriendRequestRejected'
+          - $ref: '#/components/messages/FriendRemoved'
+          - $ref: '#/components/messages/UserPresenceUpdated'
+          - $ref: '#/components/messages/SFUJoinedAck'
+          - $ref: '#/components/messages/SFULeftAck'
+          - $ref: '#/components/messages/SFUOfferFromServer'
+          - $ref: '#/components/messages/SFUAnswerFromServer'
+          - $ref: '#/components/messages/SFUIceCandidateFromServer'
+          - $ref: '#/components/messages/SFUParticipantMuted'
+          - $ref: '#/components/messages/SFUParticipantUnmuted'
+          - $ref: '#/components/messages/SFUActiveSpeakers'
+          - $ref: '#/components/messages/SFUMediaState'
+          - $ref: '#/components/messages/Error'
 components:
-  securitySchemes:
-    accessTokenCookie:
-      type: httpApiKey
-      in: cookie
-      name: access_token
-      description: Access token cookie issued by REST authentication endpoints.
-    webTransportRegistrationToken:
-      type: httpApiKey
-      in: path
-      name: token
-      description: One-time token returned by `POST /api/auth/webtransport-token`.
   schemas:
     UUID:
       type: string
@@ -613,9 +722,39 @@ components:
           description: Present on SFU leave acknowledgements.
         reason:
           type: string
+          description: Optional server-supplied leave reason.
+      additionalProperties: false
+    HeartbeatPingDatagram:
+      type: object
+      description: WebTransport QUIC datagram sent by the server every 20 seconds.
+      required:
+        - type
+        - ts
+      properties:
+        type:
+          type: string
           enum:
-            - not_enough_participants
-          description: Present when the SFU closes the room automatically.
+            - ping
+        ts:
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds generated by the sender.
+      additionalProperties: false
+    HeartbeatPongDatagram:
+      type: object
+      description: WebTransport QUIC datagram sent by the client in response to `HeartbeatPingDatagram`.
+      required:
+        - type
+        - ts
+      properties:
+        type:
+          type: string
+          enum:
+            - pong
+        ts:
+          type: integer
+          format: int64
+          description: The `ts` value copied from the received ping datagram.
       additionalProperties: false
     ChatSendData:
       type: object
@@ -632,6 +771,14 @@ components:
           minLength: 1
           maxLength: 2000
           example: hello from websocket
+        type:
+          type: string
+          default: text
+        attachment_ids:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/UUID'
       additionalProperties: false
     MessageRefData:
       type: object
@@ -679,6 +826,8 @@ components:
         is_linked:
           type: boolean
         message_id:
+          $ref: '#/components/schemas/UUID'
+        direct_message_id:
           $ref: '#/components/schemas/UUID'
         user_id:
           $ref: '#/components/schemas/UUID'
@@ -739,9 +888,6 @@ components:
         type:
           type: string
           example: text
-        media_url:
-          type: string
-          nullable: true
         attachments:
           type: array
           items:
@@ -950,9 +1096,11 @@ components:
         type:
           type: string
           default: text
-        media_url:
-          type: string
-          nullable: true
+        attachment_ids:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/UUID'
       additionalProperties: false
     DirectMessageRefData:
       type: object
@@ -1010,9 +1158,10 @@ components:
         type:
           type: string
           example: text
-        media_url:
-          type: string
-          nullable: true
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
         status:
           type: string
           enum:
@@ -1299,10 +1448,15 @@ components:
       type: object
       required:
         - room_id
-        - session_id
+        - scope
       properties:
         room_id:
           $ref: '#/components/schemas/UUID'
+        scope:
+          type: string
+          enum:
+            - server
+            - direct
         session_id:
           $ref: '#/components/schemas/UUID'
       additionalProperties: false
@@ -1405,7 +1559,6 @@ components:
   messages:
     SubscribeServer:
       name: SubscribeServer
-      messageId: SubscribeServer
       title: Subscribe to a server
       summary: Subscribe the current WebSocket connection to server-level state.
       payload:
@@ -1429,7 +1582,6 @@ components:
               server_id: 8c2fd426-b799-4d4d-976d-18a35bf1b57f
     UnsubscribeServer:
       name: UnsubscribeServer
-      messageId: UnsubscribeServer
       title: Unsubscribe from a server
       payload:
         type: object
@@ -1446,7 +1598,6 @@ components:
         additionalProperties: false
     GetServerParticipants:
       name: GetServerParticipants
-      messageId: GetServerParticipants
       title: Request server participants
       summary: Request server member info with current WebSocket online/subscription state.
       payload:
@@ -1464,7 +1615,6 @@ components:
         additionalProperties: false
     GetServerRooms:
       name: GetServerRooms
-      messageId: GetServerRooms
       title: Request server rooms snapshot
       summary: Request the full room list for a server using the same shape as the REST API.
       payload:
@@ -1482,7 +1632,6 @@ components:
         additionalProperties: false
     GetRoomMessages:
       name: GetRoomMessages
-      messageId: GetRoomMessages
       title: Request room message history
       summary: Request paginated room messages using the same cursor model as the REST API.
       payload:
@@ -1500,7 +1649,6 @@ components:
         additionalProperties: false
     JoinRoom:
       name: JoinRoom
-      messageId: JoinRoom
       title: Join a server room
       summary: Join a room after subscribing to its server.
       payload:
@@ -1518,7 +1666,6 @@ components:
         additionalProperties: false
     LeaveRoom:
       name: LeaveRoom
-      messageId: LeaveRoom
       title: Leave a room
       payload:
         type: object
@@ -1535,7 +1682,6 @@ components:
         additionalProperties: false
     GetRTCRoomParticipants:
       name: GetRTCRoomParticipants
-      messageId: GetRTCRoomParticipants
       title: Request RTC room participants
       summary: Request active SFU participants for an RTC room.
       payload:
@@ -1553,7 +1699,6 @@ components:
         additionalProperties: false
     Chat:
       name: Chat
-      messageId: Chat
       title: Send a room chat message
       summary: Sends a text message to a joined room. The server persists it and broadcasts a room_chat_message event.
       payload:
@@ -1583,7 +1728,6 @@ components:
               content: hello from websocket
     EditMessage:
       name: EditMessage
-      messageId: EditMessage
       payload:
         type: object
         required:
@@ -1599,7 +1743,6 @@ components:
         additionalProperties: false
     DeleteMessage:
       name: DeleteMessage
-      messageId: DeleteMessage
       payload:
         type: object
         required:
@@ -1615,7 +1758,6 @@ components:
         additionalProperties: false
     MarkMessageRead:
       name: MarkMessageRead
-      messageId: MarkMessageRead
       payload:
         type: object
         required:
@@ -1631,7 +1773,6 @@ components:
         additionalProperties: false
     PinMessage:
       name: PinMessage
-      messageId: PinMessage
       payload:
         type: object
         required:
@@ -1647,7 +1788,6 @@ components:
         additionalProperties: false
     UnpinMessage:
       name: UnpinMessage
-      messageId: UnpinMessage
       payload:
         type: object
         required:
@@ -1663,7 +1803,6 @@ components:
         additionalProperties: false
     TypingIndicatorCommand:
       name: TypingIndicatorCommand
-      messageId: TypingIndicatorCommand
       title: Send typing indicator
       payload:
         type: object
@@ -1694,7 +1833,6 @@ components:
         additionalProperties: false
     DirectRoomCreate:
       name: DirectRoomCreate
-      messageId: DirectRoomCreate
       title: Create direct room
       payload:
         type: object
@@ -1711,7 +1849,6 @@ components:
         additionalProperties: false
     GetDirectMessages:
       name: GetDirectMessages
-      messageId: GetDirectMessages
       title: Request direct message history
       summary: Request paginated direct messages using the same cursor model as the REST API.
       payload:
@@ -1729,7 +1866,6 @@ components:
         additionalProperties: false
     GetFriendRequests:
       name: GetFriendRequests
-      messageId: GetFriendRequests
       title: Request friend requests snapshot
       payload:
         type: object
@@ -1745,7 +1881,6 @@ components:
         additionalProperties: false
     DirectMessage:
       name: DirectMessage
-      messageId: DirectMessage
       title: Send direct message
       payload:
         type: object
@@ -1762,7 +1897,6 @@ components:
         additionalProperties: false
     DirectMessageEdit:
       name: DirectMessageEdit
-      messageId: DirectMessageEdit
       title: Edit direct message
       payload:
         type: object
@@ -1779,7 +1913,6 @@ components:
         additionalProperties: false
     DirectMessageDelete:
       name: DirectMessageDelete
-      messageId: DirectMessageDelete
       title: Delete direct message
       payload:
         type: object
@@ -1796,7 +1929,6 @@ components:
         additionalProperties: false
     DirectMessageRead:
       name: DirectMessageRead
-      messageId: DirectMessageRead
       title: Mark direct message as read
       payload:
         type: object
@@ -1813,7 +1945,6 @@ components:
         additionalProperties: false
     DirectCallStart:
       name: DirectCallStart
-      messageId: DirectCallStart
       title: Start direct call
       payload:
         type: object
@@ -1836,7 +1967,6 @@ components:
         additionalProperties: false
     DirectCallEnd:
       name: DirectCallEnd
-      messageId: DirectCallEnd
       title: End direct call
       payload:
         type: object
@@ -1853,7 +1983,6 @@ components:
         additionalProperties: false
     DirectCallDecline:
       name: DirectCallDecline
-      messageId: DirectCallDecline
       title: Decline direct call
       payload:
         type: object
@@ -1870,7 +1999,6 @@ components:
         additionalProperties: false
     SFUJoin:
       name: SFUJoin
-      messageId: SFUJoin
       title: Join SFU room
       payload:
         type: object
@@ -1887,7 +2015,6 @@ components:
         additionalProperties: false
     SFULeave:
       name: SFULeave
-      messageId: SFULeave
       title: Leave SFU room
       payload:
         type: object
@@ -1904,7 +2031,6 @@ components:
         additionalProperties: false
     SFUOfferToServer:
       name: SFUOfferToServer
-      messageId: SFUOfferToServer
       payload:
         type: object
         required:
@@ -1920,7 +2046,6 @@ components:
         additionalProperties: false
     SFUAnswerToServer:
       name: SFUAnswerToServer
-      messageId: SFUAnswerToServer
       payload:
         type: object
         required:
@@ -1936,7 +2061,6 @@ components:
         additionalProperties: false
     SFUIceCandidateToServer:
       name: SFUIceCandidateToServer
-      messageId: SFUIceCandidateToServer
       payload:
         type: object
         required:
@@ -1952,7 +2076,6 @@ components:
         additionalProperties: false
     SFUIceRestartToServer:
       name: SFUIceRestartToServer
-      messageId: SFUIceRestartToServer
       payload:
         type: object
         required:
@@ -1968,7 +2091,6 @@ components:
         additionalProperties: false
     SFUParticipantMutedToServer:
       name: SFUParticipantMutedToServer
-      messageId: SFUParticipantMutedToServer
       payload:
         type: object
         required:
@@ -1984,7 +2106,6 @@ components:
         additionalProperties: false
     SFUParticipantUnmutedToServer:
       name: SFUParticipantUnmutedToServer
-      messageId: SFUParticipantUnmutedToServer
       payload:
         type: object
         required:
@@ -2000,7 +2121,6 @@ components:
         additionalProperties: false
     SFUActiveSpeakersToServer:
       name: SFUActiveSpeakersToServer
-      messageId: SFUActiveSpeakersToServer
       payload:
         type: object
         required:
@@ -2016,7 +2136,6 @@ components:
         additionalProperties: false
     SFUMediaStateToServer:
       name: SFUMediaStateToServer
-      messageId: SFUMediaStateToServer
       payload:
         type: object
         required:
@@ -2032,7 +2151,6 @@ components:
         additionalProperties: false
     SubscribedServerAck:
       name: SubscribedServerAck
-      messageId: SubscribedServerAck
       payload:
         type: object
         required:
@@ -2048,7 +2166,6 @@ components:
         additionalProperties: false
     UnsubscribedServerAck:
       name: UnsubscribedServerAck
-      messageId: UnsubscribedServerAck
       payload:
         type: object
         required:
@@ -2064,7 +2181,6 @@ components:
         additionalProperties: false
     ServerParticipants:
       name: ServerParticipants
-      messageId: ServerParticipants
       title: Server participants snapshot
       summary: Sent after `get_server_participants` and broadcast to subscribed users when server subscription state changes.
       payload:
@@ -2082,7 +2198,6 @@ components:
         additionalProperties: false
     RoomMessagesSnapshot:
       name: RoomMessagesSnapshot
-      messageId: RoomMessagesSnapshot
       title: Room messages snapshot
       payload:
         type: object
@@ -2099,7 +2214,6 @@ components:
         additionalProperties: false
     ServerUpdated:
       name: ServerUpdated
-      messageId: ServerUpdated
       payload:
         type: object
         required:
@@ -2117,7 +2231,6 @@ components:
         additionalProperties: false
     ServerMemberRemoved:
       name: ServerMemberRemoved
-      messageId: ServerMemberRemoved
       payload:
         type: object
         required:
@@ -2133,7 +2246,6 @@ components:
         additionalProperties: false
     ServerRoleUpdated:
       name: ServerRoleUpdated
-      messageId: ServerRoleUpdated
       payload:
         type: object
         required:
@@ -2149,7 +2261,6 @@ components:
         additionalProperties: false
     JoinedRoomAck:
       name: JoinedRoomAck
-      messageId: JoinedRoomAck
       payload:
         type: object
         required:
@@ -2165,7 +2276,6 @@ components:
         additionalProperties: false
     LeftRoomAck:
       name: LeftRoomAck
-      messageId: LeftRoomAck
       payload:
         type: object
         required:
@@ -2181,7 +2291,6 @@ components:
         additionalProperties: false
     RTCRoomParticipants:
       name: RTCRoomParticipants
-      messageId: RTCRoomParticipants
       title: RTC room participants snapshot
       summary: Sent after `get_rtc_room_participants` and broadcast to room subscribers after SFU join/leave.
       payload:
@@ -2199,7 +2308,6 @@ components:
         additionalProperties: false
     ServerRoomsSnapshot:
       name: ServerRoomsSnapshot
-      messageId: ServerRoomsSnapshot
       title: Server rooms snapshot
       summary: Sent after `get_server_rooms`.
       payload:
@@ -2217,7 +2325,6 @@ components:
         additionalProperties: false
     RoomCreated:
       name: RoomCreated
-      messageId: RoomCreated
       payload:
         type: object
         required:
@@ -2233,7 +2340,6 @@ components:
         additionalProperties: false
     RoomUpdated:
       name: RoomUpdated
-      messageId: RoomUpdated
       payload:
         type: object
         required:
@@ -2251,7 +2357,6 @@ components:
         additionalProperties: false
     RoomDeleted:
       name: RoomDeleted
-      messageId: RoomDeleted
       payload:
         type: object
         required:
@@ -2267,7 +2372,6 @@ components:
         additionalProperties: false
     RoomChatMessage:
       name: RoomChatMessage
-      messageId: RoomChatMessage
       title: Room chat message
       summary: Broadcast after a room chat message is created.
       payload:
@@ -2285,7 +2389,6 @@ components:
         additionalProperties: false
     TypingIndicator:
       name: TypingIndicator
-      messageId: TypingIndicator
       title: Typing indicator
       payload:
         type: object
@@ -2302,7 +2405,6 @@ components:
         additionalProperties: false
     MessageUpdated:
       name: MessageUpdated
-      messageId: MessageUpdated
       payload:
         type: object
         required:
@@ -2318,7 +2420,6 @@ components:
         additionalProperties: false
     MessageDeleted:
       name: MessageDeleted
-      messageId: MessageDeleted
       payload:
         type: object
         required:
@@ -2334,7 +2435,6 @@ components:
         additionalProperties: false
     MessageStatusUpdated:
       name: MessageStatusUpdated
-      messageId: MessageStatusUpdated
       payload:
         type: object
         required:
@@ -2350,7 +2450,6 @@ components:
         additionalProperties: false
     MessagePinUpdated:
       name: MessagePinUpdated
-      messageId: MessagePinUpdated
       payload:
         type: object
         required:
@@ -2366,7 +2465,6 @@ components:
         additionalProperties: false
     MessageReactionUpdated:
       name: MessageReactionUpdated
-      messageId: MessageReactionUpdated
       payload:
         type: object
         required:
@@ -2382,7 +2480,6 @@ components:
         additionalProperties: false
     DirectRoomCreated:
       name: DirectRoomCreated
-      messageId: DirectRoomCreated
       payload:
         type: object
         required:
@@ -2398,7 +2495,6 @@ components:
         additionalProperties: false
     DirectRoomUpdated:
       name: DirectRoomUpdated
-      messageId: DirectRoomUpdated
       payload:
         type: object
         required:
@@ -2414,7 +2510,6 @@ components:
         additionalProperties: false
     DirectRoomLeft:
       name: DirectRoomLeft
-      messageId: DirectRoomLeft
       payload:
         type: object
         required:
@@ -2430,7 +2525,6 @@ components:
         additionalProperties: false
     DirectMessagesSnapshot:
       name: DirectMessagesSnapshot
-      messageId: DirectMessagesSnapshot
       title: Direct messages snapshot
       payload:
         type: object
@@ -2447,7 +2541,6 @@ components:
         additionalProperties: false
     DirectMessageCreated:
       name: DirectMessageCreated
-      messageId: DirectMessageCreated
       payload:
         type: object
         required:
@@ -2463,7 +2556,6 @@ components:
         additionalProperties: false
     DirectMessageUpdated:
       name: DirectMessageUpdated
-      messageId: DirectMessageUpdated
       payload:
         type: object
         required:
@@ -2479,7 +2571,6 @@ components:
         additionalProperties: false
     DirectMessageDeleted:
       name: DirectMessageDeleted
-      messageId: DirectMessageDeleted
       payload:
         type: object
         required:
@@ -2495,7 +2586,6 @@ components:
         additionalProperties: false
     DirectMessageStatusUpdated:
       name: DirectMessageStatusUpdated
-      messageId: DirectMessageStatusUpdated
       payload:
         type: object
         required:
@@ -2511,7 +2601,6 @@ components:
         additionalProperties: false
     DirectCallStarted:
       name: DirectCallStarted
-      messageId: DirectCallStarted
       payload:
         type: object
         required:
@@ -2527,7 +2616,6 @@ components:
         additionalProperties: false
     DirectCallEnded:
       name: DirectCallEnded
-      messageId: DirectCallEnded
       summary: Direct call ended.
       description: >
         Broadcast to all direct-room members when a direct call is explicitly ended
@@ -2549,7 +2637,6 @@ components:
         additionalProperties: false
     DirectCallDeclined:
       name: DirectCallDeclined
-      messageId: DirectCallDeclined
       payload:
         type: object
         required:
@@ -2565,7 +2652,6 @@ components:
         additionalProperties: false
     FriendRequestReceived:
       name: FriendRequestReceived
-      messageId: FriendRequestReceived
       payload:
         type: object
         required:
@@ -2581,7 +2667,6 @@ components:
         additionalProperties: false
     FriendRequestAccepted:
       name: FriendRequestAccepted
-      messageId: FriendRequestAccepted
       payload:
         type: object
         required:
@@ -2597,7 +2682,6 @@ components:
         additionalProperties: false
     FriendRequestsSnapshot:
       name: FriendRequestsSnapshot
-      messageId: FriendRequestsSnapshot
       payload:
         type: object
         required:
@@ -2613,7 +2697,6 @@ components:
         additionalProperties: false
     FriendRequestRejected:
       name: FriendRequestRejected
-      messageId: FriendRequestRejected
       payload:
         type: object
         required:
@@ -2629,7 +2712,6 @@ components:
         additionalProperties: false
     FriendRemoved:
       name: FriendRemoved
-      messageId: FriendRemoved
       payload:
         type: object
         required:
@@ -2645,7 +2727,6 @@ components:
         additionalProperties: false
     UserPresenceUpdated:
       name: UserPresenceUpdated
-      messageId: UserPresenceUpdated
       payload:
         type: object
         required:
@@ -2661,7 +2742,6 @@ components:
         additionalProperties: false
     SFUJoinedAck:
       name: SFUJoinedAck
-      messageId: SFUJoinedAck
       payload:
         type: object
         required:
@@ -2677,7 +2757,6 @@ components:
         additionalProperties: false
     SFULeftAck:
       name: SFULeftAck
-      messageId: SFULeftAck
       payload:
         type: object
         required:
@@ -2693,7 +2772,6 @@ components:
         additionalProperties: false
     SFUOfferFromServer:
       name: SFUOfferFromServer
-      messageId: SFUOfferFromServer
       payload:
         allOf:
           - $ref: '#/components/schemas/SfuSignalFromServer'
@@ -2705,7 +2783,6 @@ components:
                   - sfu_offer
     SFUAnswerFromServer:
       name: SFUAnswerFromServer
-      messageId: SFUAnswerFromServer
       payload:
         allOf:
           - $ref: '#/components/schemas/SfuSignalFromServer'
@@ -2717,7 +2794,6 @@ components:
                   - sfu_answer
     SFUIceCandidateFromServer:
       name: SFUIceCandidateFromServer
-      messageId: SFUIceCandidateFromServer
       payload:
         allOf:
           - $ref: '#/components/schemas/SfuSignalFromServer'
@@ -2729,7 +2805,6 @@ components:
                   - sfu_ice_candidate
     SFUParticipantMuted:
       name: SFUParticipantMuted
-      messageId: SFUParticipantMuted
       payload:
         type: object
         required:
@@ -2745,7 +2820,6 @@ components:
         additionalProperties: false
     SFUParticipantUnmuted:
       name: SFUParticipantUnmuted
-      messageId: SFUParticipantUnmuted
       payload:
         type: object
         required:
@@ -2761,7 +2835,6 @@ components:
         additionalProperties: false
     SFUActiveSpeakers:
       name: SFUActiveSpeakers
-      messageId: SFUActiveSpeakers
       payload:
         type: object
         required:
@@ -2777,7 +2850,6 @@ components:
         additionalProperties: false
     SFUMediaState:
       name: SFUMediaState
-      messageId: SFUMediaState
       payload:
         type: object
         required:
@@ -2793,7 +2865,6 @@ components:
         additionalProperties: false
     Error:
       name: Error
-      messageId: Error
       payload:
         type: object
         required:

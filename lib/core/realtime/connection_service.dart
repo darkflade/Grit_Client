@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import '../../data/api/rest.dart';
 import '../../features/calls/application/webrtc_sfu_service.dart';
 import '../logging/app_logger.dart';
 import 'event_transport.dart';
@@ -9,6 +10,7 @@ class ConnectionService {
   static const _log = AppLogger('ConnectionService');
 
   EventTransport eventTransport;
+  final ApiClient apiClient;
 
   final _messageController = StreamController<dynamic>.broadcast();
   Stream<dynamic> get messageStream => _messageController.stream;
@@ -26,7 +28,7 @@ class ConnectionService {
   final Map<String, String> _joinedRooms = {};
   final Map<String, WebRtcSfuService> _sfuSessions = {};
 
-  ConnectionService(this.eventTransport);
+  ConnectionService(this.eventTransport, {required this.apiClient});
 
   Future<void> setTransport(EventTransport transport) async {
     final shouldReconnect = _isConnected || _isConnecting;
@@ -86,6 +88,67 @@ class ConnectionService {
       return;
     }
     eventTransport.sendCommand(type, data, nonce: nonce);
+  }
+
+  Future<Map<String, dynamic>> getRtcConfig() async {
+    if (!_isConnected) {
+      return apiClient.getRtcConfig();
+    }
+
+    final nonce =
+        'ice:${DateTime.now().microsecondsSinceEpoch}:$_reconnectAttempt';
+    final completer = Completer<Map<String, dynamic>>();
+    late final StreamSubscription<dynamic> subscription;
+    Timer? timeout;
+
+    subscription = messageStream.listen((message) {
+      try {
+        final decoded = message is String ? jsonDecode(message) : message;
+        if (decoded is! Map) return;
+        if (decoded['nonce'] != nonce) return;
+        final type = decoded['type'];
+        if (type == 'error') {
+          final data = decoded['data'];
+          final error = data is Map
+              ? (data['message'] ?? data['code'] ?? 'RTC config request failed')
+              : 'RTC config request failed';
+          if (!completer.isCompleted) {
+            completer.completeError(Exception(error.toString()));
+          }
+          return;
+        }
+        if (type != 'ice_servers') return;
+        final data = decoded['data'];
+        if (data is Map) {
+          if (!completer.isCompleted) {
+            completer.complete(Map<String, dynamic>.from(data));
+          }
+        }
+      } catch (e) {
+        if (!completer.isCompleted) completer.completeError(e);
+      }
+    });
+
+    timeout = Timer(const Duration(seconds: 3), () {
+      if (!completer.isCompleted) {
+        completer.completeError(Exception('RTC config realtime timeout'));
+      }
+    });
+
+    sendCommand('get_ice_servers', {}, nonce: nonce);
+
+    try {
+      return await completer.future;
+    } catch (e) {
+      _log.warn(
+        'RTC config over event transport failed, using REST',
+        data: '$e',
+      );
+      return apiClient.getRtcConfig();
+    } finally {
+      timeout.cancel();
+      await subscription.cancel();
+    }
   }
 
   // Common commands abstracted
@@ -163,6 +226,10 @@ class ConnectionService {
     eventTransport.pinMessage(roomId, messageId, isDirect: isDirect);
   }
 
+  void unpinMessage(String roomId, String messageId, {bool isDirect = false}) {
+    eventTransport.unpinMessage(roomId, messageId, isDirect: isDirect);
+  }
+
   void markMessageRead(
     String roomId,
     String messageId, {
@@ -177,7 +244,11 @@ class ConnectionService {
       return _sfuSessions[roomId]!;
     }
 
-    final sfu = WebRtcSfuService(roomId: roomId, transport: eventTransport);
+    final sfu = WebRtcSfuService(
+      roomId: roomId,
+      transport: eventTransport,
+      loadRtcConfig: getRtcConfig,
+    );
     _sfuSessions[roomId] = sfu;
     await sfu.initialize();
     eventTransport.sfuJoin(roomId);
@@ -303,10 +374,18 @@ class ConnectionService {
           break;
         case 'sfu_active_speakers':
           if (data is! Map) return;
-          final speakers = data['active_speakers'];
+          final speakers = data['active_speakers'] ?? data['speakers'];
           if (speakers is List) {
             sfu.handleActiveSpeakers(
-              speakers.map((e) => e.toString()).toList(),
+              speakers
+                  .map((speaker) {
+                    if (speaker is Map && speaker['user_id'] != null) {
+                      return speaker['user_id'].toString();
+                    }
+                    return speaker.toString();
+                  })
+                  .where((userId) => userId.isNotEmpty)
+                  .toList(),
             );
           }
           break;

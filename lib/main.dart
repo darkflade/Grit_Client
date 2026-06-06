@@ -67,6 +67,7 @@ void main() async {
   themeNotifier.value = savedTheme;
   final connectionService = ConnectionService(
     createEventTransport(savedTransportMode, apiClient),
+    apiClient: apiClient,
   );
 
   try {
@@ -111,8 +112,9 @@ Future<void> _initializeWebRtcAudio() async {
 
   await WebRTC.initialize(
     options: {
-      'androidAudioConfiguration': AndroidAudioConfiguration.media.toMap(),
-      'bypassVoiceProcessing': true,
+      'androidAudioConfiguration': AndroidAudioConfiguration.communication
+          .toMap(),
+      'bypassVoiceProcessing': false,
       'audioSampleRate': 48000,
       'audioOutputSampleRate': 48000,
     },

@@ -10,6 +10,7 @@ import '../models/room.dart';
 import '../models/user.dart';
 import '../models/direct_room.dart';
 import '../models/attachment.dart';
+import '../models/chat_message.dart';
 import '../models/message_page.dart';
 
 class ApiClient {
@@ -78,6 +79,28 @@ class ApiClient {
       return data["token"] as String;
     }
     throw Exception("Invalid WebTransport token response");
+  }
+
+  Future<Map<String, dynamic>> getRtcConfig() async {
+    final response = await dio.get("/api/auth/ice-servers");
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      final servers = data["ice_servers"] ?? data["iceServers"];
+      if (servers is List) {
+        final iceServers = servers
+            .whereType<Map>()
+            .map((server) => Map<String, dynamic>.from(server))
+            .toList();
+        return {
+          "iceServers": iceServers,
+          "iceTransportPolicy":
+              data["ice_transport_policy"] ??
+              data["iceTransportPolicy"] ??
+              "all",
+        };
+      }
+    }
+    throw Exception("Invalid RTC config response");
   }
 
   // User
@@ -309,6 +332,7 @@ class ApiClient {
       await dio.put("/api/messages/$messageId/pin");
     } catch (e) {
       debugPrint("Error in pinMessage: $e");
+      rethrow;
     }
   }
 
@@ -317,7 +341,22 @@ class ApiClient {
       await dio.delete("/api/messages/$messageId/pin");
     } catch (e) {
       debugPrint("Error in unpinMessage: $e");
+      rethrow;
     }
+  }
+
+  Future<List<ChatMessage>> getPinnedMessages(String roomId) async {
+    try {
+      final res = await dio.get("/api/rooms/$roomId/pins");
+      if (res.statusCode == 200 && res.data is List) {
+        return (res.data as List)
+            .map((item) => ChatMessage.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint("Error in getPinnedMessages: $e");
+    }
+    return [];
   }
 
   Future<void> markMessageRead(
@@ -335,7 +374,7 @@ class ApiClient {
     }
   }
 
-  Future<void> sendRoomMessage(
+  Future<ChatMessage?> sendRoomMessage(
     String roomId,
     String content, {
     String type = "text",
@@ -350,13 +389,17 @@ class ApiClient {
       debugPrint("ApiClient: sending room message to $roomId, data: $data");
       final res = await dio.post("/api/rooms/$roomId/messages/", data: data);
       debugPrint("ApiClient: room message response: ${res.statusCode}");
+      if (res.data is Map<String, dynamic>) {
+        return ChatMessage.fromJson(res.data as Map<String, dynamic>);
+      }
+      return null;
     } catch (e) {
       debugPrint("Error in sendRoomMessage: $e");
       rethrow;
     }
   }
 
-  Future<void> sendDirectMessage(
+  Future<ChatMessage?> sendDirectMessage(
     String roomId,
     String content, {
     String type = "text",
@@ -368,7 +411,14 @@ class ApiClient {
       if (mediaUrl != null) data["media_url"] = mediaUrl;
       if (attachmentIds != null) data["attachment_ids"] = attachmentIds;
 
-      await dio.post("/api/direct/rooms/$roomId/messages", data: data);
+      final res = await dio.post(
+        "/api/direct/rooms/$roomId/messages",
+        data: data,
+      );
+      if (res.data is Map<String, dynamic>) {
+        return ChatMessage.fromJson(res.data as Map<String, dynamic>);
+      }
+      return null;
     } catch (e) {
       debugPrint("Error in sendDirectMessage: $e");
       rethrow;

@@ -46,6 +46,7 @@ abstract class EventTransport {
     required String scope,
   });
   void pinMessage(String roomId, String messageId, {bool isDirect = false});
+  void unpinMessage(String roomId, String messageId, {bool isDirect = false});
   void markMessageRead(
     String roomId,
     String messageId, {

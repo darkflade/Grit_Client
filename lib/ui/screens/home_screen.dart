@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../controllers/home_controller.dart';
 import '../../features/calls/application/webrtc_sfu_service.dart';
@@ -859,42 +859,117 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMessagesView() {
-    return ValueListenableBuilder<List<ChatMessage>>(
-      valueListenable: _controller.chatMessages,
-      builder: (context, messages, _) {
-        if (messages.isEmpty && !_controller.isLoading.value) {
-          return Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: const Text("No messages yet."),
-            ),
-          );
-        }
-        return ListView.builder(
-          controller: _scrollController,
-          reverse: true,
-          itemCount: messages.length + 1,
-          padding: const EdgeInsets.fromLTRB(6, 6, 6, 12),
-          itemBuilder: (context, index) {
-            if (index == messages.length) {
-              return ValueListenableBuilder<bool>(
-                valueListenable: _controller.isLoadingMore,
-                builder: (_, loading, child) => loading
-                    ? const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    : const SizedBox.shrink(),
+    return Column(
+      children: [
+        _buildPinnedMessagesBar(),
+        Expanded(
+          child: ValueListenableBuilder<List<ChatMessage>>(
+            valueListenable: _controller.chatMessages,
+            builder: (context, messages, _) {
+              if (messages.isEmpty && !_controller.isLoading.value) {
+                return Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Text("No messages yet."),
+                  ),
+                );
+              }
+              return ListView.builder(
+                controller: _scrollController,
+                reverse: true,
+                itemCount: messages.length + 1,
+                padding: const EdgeInsets.fromLTRB(6, 6, 6, 12),
+                itemBuilder: (context, index) {
+                  if (index == messages.length) {
+                    return ValueListenableBuilder<bool>(
+                      valueListenable: _controller.isLoadingMore,
+                      builder: (_, loading, child) => loading
+                          ? const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Center(child: CircularProgressIndicator()),
+                            )
+                          : const SizedBox.shrink(),
+                    );
+                  }
+                  final msg = messages[index];
+                  final isMe = msg.senderId == _controller.currentUserId;
+                  return _buildMessageTile(msg, isMe);
+                },
               );
-            }
-            final msg = messages[index];
-            final isMe = msg.senderId == _controller.currentUserId;
-            return _buildMessageTile(msg, isMe);
-          },
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPinnedMessagesBar() {
+    return ValueListenableBuilder<List<ChatMessage>>(
+      valueListenable: _controller.pinnedMessages,
+      builder: (context, pins, _) {
+        if (pins.isEmpty) return const SizedBox.shrink();
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.25),
+              ),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.push_pin_rounded,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    "Pinned messages",
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              SizedBox(
+                height: 44,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: pins.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final message = pins[index];
+                    return ActionChip(
+                      avatar: const Icon(Icons.push_pin_rounded, size: 14),
+                      label: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 220),
+                        child: Text(
+                          message.content.isEmpty
+                              ? "Attachment"
+                              : message.content,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      onPressed: () => _showMessageActions(message),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -942,7 +1017,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 child: InkWell(
-                  onLongPress: () => _controller.pinMessage(msg.id),
+                  onLongPress: () => _showMessageActions(msg),
                   onTap: () => _controller.markAsRead(msg.id),
                   borderRadius: BorderRadius.circular(16),
                   child: Padding(
@@ -1031,6 +1106,63 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showMessageActions(ChatMessage message) {
+    final isPinned = message.pinnedAt != null;
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(
+                    isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+                  ),
+                  title: Text(isPinned ? "Unpin message" : "Pin message"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (isPinned) {
+                      unawaited(_controller.unpinMessage(message.id));
+                    } else {
+                      unawaited(_controller.pinMessage(message.id));
+                    }
+                  },
+                ),
+                if (message.content.trim().isNotEmpty)
+                  ListTile(
+                    leading: const Icon(Icons.copy_rounded),
+                    title: const Text("Copy text"),
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: message.content));
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Message copied"),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.done_all_rounded),
+                  title: const Text("Mark as read"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _controller.markAsRead(message.id);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

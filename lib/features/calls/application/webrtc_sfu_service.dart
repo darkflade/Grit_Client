@@ -9,9 +9,14 @@ import '../../../core/logging/app_logger.dart';
 import '../../../core/realtime/event_transport.dart';
 import 'ice_restart_controller.dart';
 
+typedef RtcConfigLoader = Future<Map<String, dynamic>> Function();
+
+const _mediaDeadFallbackDelay = Duration(seconds: 6);
+
 class WebRtcSfuService {
   final String roomId;
   final EventTransport transport;
+  final RtcConfigLoader? loadRtcConfig;
   final bool isPolite;
   String? sessionId;
   final AppLogger _log;
@@ -57,6 +62,14 @@ class WebRtcSfuService {
   final _remoteAudioTrackCount = ValueNotifier<int>(0);
   ValueListenable<int> get remoteAudioTrackCount => _remoteAudioTrackCount;
   final Set<String> _seenRemoteAudioTrackIds = <String>{};
+  final Set<String> _seenRemoteTrackIds = <String>{};
+  Map<String, dynamic>? _rtcConfiguration;
+  Timer? _inboundStatsTimer;
+  DateTime? _connectedAt;
+  DateTime? _noInboundSince;
+  int? _lastInboundBytes;
+  bool _relayFallbackInFlight = false;
+  bool _relayFallbackUsed = false;
 
   final _mediaDevices = ValueNotifier<List<MediaDeviceInfo>>([]);
   ValueListenable<List<MediaDeviceInfo>> get mediaDevices => _mediaDevices;
@@ -78,6 +91,7 @@ class WebRtcSfuService {
   WebRtcSfuService({
     required this.roomId,
     required this.transport,
+    this.loadRtcConfig,
     this.isPolite = true,
   }) : _log = AppLogger('SFU.$roomId'),
        _iceRestartController = IceRestartController(
@@ -104,12 +118,9 @@ class WebRtcSfuService {
       // We proceed but getUserMedia will likely fail, which is handled below.
     }
 
-    final configuration = {
-      'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'},
-      ],
-      'sdpSemantics': 'unified-plan',
-    };
+    final configuration = await _loadRtcConfiguration();
+    _rtcConfiguration = configuration;
+    unawaited(_warmupTurn(configuration));
 
     _peerConnection = await createPeerConnection(configuration);
     await _configureMobileAudio();
@@ -153,16 +164,22 @@ class WebRtcSfuService {
     await refreshMediaDevices();
 
     _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
+      final rawCandidate = candidate.candidate;
       _log.debug(
         'local ICE candidate',
         data: {
-          'candidate': candidate.candidate == null ? 'end' : 'present',
-          'candidate_length': candidate.candidate?.length,
+          'candidate': rawCandidate == null ? 'end' : 'present',
+          'candidate_length': rawCandidate?.length,
+          'candidate_type': _candidateToken(rawCandidate, 'typ'),
+          'protocol': _candidateProtocol(rawCandidate),
           'sdp_mid': candidate.sdpMid,
           'sdp_m_line_index': candidate.sdpMLineIndex,
         },
       );
-      transport.sfuSendIceCandidate(roomId, candidate.toMap());
+      transport.sfuSendIceCandidate(
+        roomId,
+        rawCandidate == null ? null : candidate.toMap(),
+      );
     };
 
     _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
@@ -184,6 +201,18 @@ class WebRtcSfuService {
       if (_disposed) return;
       _connectionStateValue.value = state;
       _connectionStateController.add(state);
+      if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        _connectedAt = DateTime.now();
+        _noInboundSince = null;
+        _lastInboundBytes = null;
+        _startInboundStatsWatch();
+      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateClosed ||
+          state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+        _connectedAt = null;
+        _noInboundSince = null;
+        _lastInboundBytes = null;
+        _stopInboundStatsWatch();
+      }
     };
 
     _peerConnection!.onTrack = (RTCTrackEvent event) async {
@@ -196,9 +225,12 @@ class WebRtcSfuService {
           'stream_ids': event.streams.map((s) => s.id).toList(),
         },
       );
+      final trackId = event.track.id;
+      if (trackId != null) {
+        _seenRemoteTrackIds.add(trackId);
+      }
       if (trackKind == 'audio') {
         event.track.enabled = true;
-        final trackId = event.track.id;
         if (trackId != null) {
           _seenRemoteAudioTrackIds.add(trackId);
         }
@@ -216,6 +248,177 @@ class WebRtcSfuService {
     _peerConnection!.onRenegotiationNeeded = () async {
       await _negotiate("renegotiation-needed");
     };
+  }
+
+  Future<Map<String, dynamic>> _loadRtcConfiguration() async {
+    final fallback = <String, dynamic>{
+      'iceServers': [
+        {
+          'urls': [
+            'stun:stun.l.google.com:19302',
+            'stun:stun1.l.google.com:19302',
+          ],
+        },
+      ],
+      'iceTransportPolicy': 'all',
+      'sdpSemantics': 'unified-plan',
+    };
+
+    final loader = loadRtcConfig;
+    if (loader == null) return fallback;
+
+    try {
+      final config = await loader();
+      final servers = config['iceServers'];
+      if (servers is! List) return fallback;
+      final normalized = servers.where((server) => server['urls'] != null).map((
+        server,
+      ) {
+        final next = <String, dynamic>{'urls': server['urls']};
+        final username = server['username'];
+        final credential = server['credential'];
+        if (username is String && username.isNotEmpty) {
+          next['username'] = username;
+        }
+        if (credential is String && credential.isNotEmpty) {
+          next['credential'] = credential;
+        }
+        return next;
+      }).toList();
+      if (normalized.isEmpty) return fallback;
+      return {
+        'iceServers': normalized,
+        'iceTransportPolicy': config['iceTransportPolicy'] == 'relay'
+            ? 'relay'
+            : 'all',
+        'sdpSemantics': 'unified-plan',
+      };
+    } catch (e) {
+      _log.warn('failed to load RTC config, using fallback', data: '$e');
+      return fallback;
+    }
+  }
+
+  Future<void> _warmupTurn(Map<String, dynamic> configuration) async {
+    final iceServers = configuration['iceServers'];
+    if (iceServers is! List) return;
+    final hasTurn = iceServers.any((server) {
+      if (server is! Map) return false;
+      final urls = server['urls'];
+      final list = urls is List ? urls : [urls];
+      return list.any((url) => url is String && url.startsWith('turn'));
+    });
+    if (!hasTurn) return;
+
+    RTCPeerConnection? warmupPc;
+    final completed = Completer<void>();
+    Timer? timeout;
+    try {
+      final warmupConfig = Map<String, dynamic>.from(configuration);
+      warmupConfig['iceTransportPolicy'] = 'relay';
+      warmupPc = await createPeerConnection(warmupConfig);
+      warmupPc.onIceCandidate = (candidate) {
+        final raw = candidate.candidate ?? '';
+        if (!completed.isCompleted &&
+            (raw.isEmpty || raw.contains(' typ relay '))) {
+          completed.complete();
+        }
+      };
+      await warmupPc.createDataChannel('turn-warmup', RTCDataChannelInit());
+      final offer = await warmupPc.createOffer();
+      await warmupPc.setLocalDescription(offer);
+      timeout = Timer(const Duration(milliseconds: 2500), () {
+        if (!completed.isCompleted) completed.complete();
+      });
+      await completed.future;
+    } catch (e) {
+      _log.warn('TURN warmup failed', data: '$e');
+    } finally {
+      timeout?.cancel();
+      await warmupPc?.close();
+    }
+  }
+
+  void _startInboundStatsWatch() {
+    _inboundStatsTimer ??= Timer.periodic(const Duration(seconds: 2), (_) {
+      unawaited(_checkInboundStats());
+    });
+    unawaited(_checkInboundStats());
+  }
+
+  void _stopInboundStatsWatch() {
+    _inboundStatsTimer?.cancel();
+    _inboundStatsTimer = null;
+  }
+
+  Future<void> _checkInboundStats() async {
+    final peerConnection = _peerConnection;
+    if (_disposed || peerConnection == null) return;
+    if (_relayFallbackUsed || _relayFallbackInFlight) return;
+    if (_rtcConfiguration?['iceTransportPolicy'] == 'relay') return;
+    if (!_hasExpectedRemoteMedia()) return;
+
+    try {
+      final reports = await peerConnection.getStats();
+      var inboundReports = 0;
+      var inboundBytes = 0;
+      for (final report in reports) {
+        if (report.type != 'inbound-rtp') continue;
+        inboundReports += 1;
+        inboundBytes += _intStat(report.values['bytesReceived']);
+      }
+      if (inboundReports == 0) return;
+
+      final now = DateTime.now();
+      final connectedAt = _connectedAt ?? now;
+      if (now.difference(connectedAt) < _mediaDeadFallbackDelay) return;
+
+      final previous = _lastInboundBytes;
+      _lastInboundBytes = inboundBytes;
+      if (previous == null || inboundBytes > previous) {
+        _noInboundSince = null;
+        return;
+      }
+
+      _noInboundSince ??= now;
+      if (now.difference(_noInboundSince!) >= _mediaDeadFallbackDelay) {
+        await _switchToRelayAndRestart('inbound-media-stalled');
+      }
+    } catch (e) {
+      _log.warn('failed to inspect inbound stats', data: '$e');
+    }
+  }
+
+  bool _hasExpectedRemoteMedia() => _seenRemoteTrackIds.isNotEmpty;
+
+  int _intStat(Object? value) {
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
+  Future<void> _switchToRelayAndRestart(String reason) async {
+    final peerConnection = _peerConnection;
+    final config = _rtcConfiguration;
+    if (peerConnection == null || config == null) return;
+    if (_relayFallbackInFlight || _relayFallbackUsed) return;
+
+    _relayFallbackInFlight = true;
+    _relayFallbackUsed = true;
+    _noInboundSince = null;
+    try {
+      final relayConfig = Map<String, dynamic>.from(config);
+      relayConfig['iceTransportPolicy'] = 'relay';
+      _rtcConfiguration = relayConfig;
+      await peerConnection.setConfiguration(relayConfig);
+      unawaited(_warmupTurn(relayConfig));
+      restartIce(reason);
+    } catch (e) {
+      _log.warn('failed to switch to relay ICE policy', data: '$e');
+    } finally {
+      _relayFallbackInFlight = false;
+    }
   }
 
   Future<void> _negotiate(String reason) async {
@@ -307,6 +510,19 @@ class WebRtcSfuService {
       'video_tracks': stream.getVideoTracks().length,
       'constraints': constraints,
     };
+  }
+
+  String? _candidateProtocol(String? candidate) {
+    final parts = candidate?.split(RegExp(r'\s+')) ?? const <String>[];
+    if (parts.length < 3) return null;
+    return parts[2].toLowerCase();
+  }
+
+  String? _candidateToken(String? candidate, String marker) {
+    final parts = candidate?.split(RegExp(r'\s+')) ?? const <String>[];
+    final index = parts.indexOf(marker);
+    if (index == -1 || index + 1 >= parts.length) return null;
+    return parts[index + 1];
   }
 
   Map<String, dynamic> _audioConstraints(String? deviceId) {
@@ -475,7 +691,7 @@ class WebRtcSfuService {
     try {
       if (Platform.isAndroid) {
         await Helper.setAndroidAudioConfiguration(
-          AndroidAudioConfiguration.media,
+          AndroidAudioConfiguration.communication,
         );
         await Helper.setSpeakerphoneOn(true);
         return;
@@ -571,6 +787,10 @@ class WebRtcSfuService {
           'sdp_mid': candidateData['sdpMid'],
           'sdp_m_line_index': candidateData['sdpMLineIndex'],
           'candidate_length': candidateData['candidate']?.toString().length,
+          'candidate_type': _candidateToken(
+            candidateData['candidate']?.toString(),
+            'typ',
+          ),
         },
       );
       final candidate = RTCIceCandidate(
@@ -744,6 +964,7 @@ class WebRtcSfuService {
   Future<void> dispose() async {
     _disposed = true;
     _iceRestartController.dispose();
+    _stopInboundStatsWatch();
     for (var track in _localStream?.getTracks() ?? []) {
       track.stop();
     }

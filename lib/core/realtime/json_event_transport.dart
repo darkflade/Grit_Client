@@ -118,10 +118,12 @@ abstract class JsonEventTransport implements EventTransport {
 
   @override
   void pinMessage(String roomId, String messageId, {bool isDirect = false}) {
-    sendCommand(isDirect ? "direct_message_pin" : "pin_message", {
-      "room_id": roomId,
-      "message_id": messageId,
-    });
+    sendCommand("pin_message", {"room_id": roomId, "message_id": messageId});
+  }
+
+  @override
+  void unpinMessage(String roomId, String messageId, {bool isDirect = false}) {
+    sendCommand("unpin_message", {"room_id": roomId, "message_id": messageId});
   }
 
   @override

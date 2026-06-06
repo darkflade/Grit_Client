@@ -47,6 +47,7 @@ class HomeController {
   final directRooms = ValueNotifier<List<DirectRoom>>([]);
   final currentDirectRoom = ValueNotifier<DirectRoom?>(null);
   final chatMessages = ValueNotifier<List<ChatMessage>>([]);
+  final pinnedMessages = ValueNotifier<List<ChatMessage>>([]);
   final isDirectChat = ValueNotifier<bool>(false);
   final typingUsers = ValueNotifier<Set<String>>({});
   final activeSfuService = ValueNotifier<WebRtcSfuService?>(null);
@@ -205,6 +206,7 @@ class HomeController {
     isDirectChat.value = false;
     rooms.value = [];
     chatMessages.value = [];
+    pinnedMessages.value = [];
     typingUsers.value = {};
     _nextCursor = null;
     _hasMore = false;
@@ -231,6 +233,7 @@ class HomeController {
     isLoading.value = true;
     currentRoom.value = room;
     chatMessages.value = [];
+    pinnedMessages.value = [];
     typingUsers.value = {};
     _nextCursor = null;
     _hasMore = false;
@@ -258,6 +261,7 @@ class HomeController {
         _markActiveRoomRead();
         resolveUsers(page.messages);
       }
+      await _loadPinnedMessages(room.id, isDirect: false);
 
       await storageService.saveLastActiveChat(
         serverId: room.serverId,
@@ -277,6 +281,7 @@ class HomeController {
     currentRoom.value = null;
     isDirectChat.value = true;
     chatMessages.value = [];
+    pinnedMessages.value = [];
     typingUsers.value = {};
     _nextCursor = null;
     _hasMore = false;
@@ -290,6 +295,9 @@ class HomeController {
         _sortMessages();
         _markActiveRoomRead();
         resolveUsers(page.messages);
+        pinnedMessages.value = page.messages
+            .where((message) => message.pinnedAt != null)
+            .toList();
       }
 
       await storageService.saveLastActiveChat(roomId: dRoom.id, isDirect: true);
@@ -493,8 +501,9 @@ class HomeController {
     if (hasAttachments) {
       // Use REST for messages with attachments as per documentation
       try {
+        ChatMessage? createdMessage;
         if (isDirectChat.value && currentDirectRoom.value != null) {
-          await apiClient.sendDirectMessage(
+          createdMessage = await apiClient.sendDirectMessage(
             currentDirectRoom.value!.id,
             finalContent,
             attachmentIds: attachmentIds,
@@ -502,13 +511,16 @@ class HomeController {
             mediaUrl: mediaUrl,
           );
         } else if (currentRoom.value != null) {
-          await apiClient.sendRoomMessage(
+          createdMessage = await apiClient.sendRoomMessage(
             currentRoom.value!.id,
             finalContent,
             attachmentIds: attachmentIds,
             type: type,
             mediaUrl: mediaUrl,
           );
+        }
+        if (createdMessage != null) {
+          _upsertMessage(createdMessage);
         }
       } catch (e) {
         if (tempId != null) _markMessageError(tempId);
@@ -550,16 +562,30 @@ class HomeController {
     );
   }
 
-  void pinMessage(String messageId) {
+  Future<void> pinMessage(String messageId) async {
     final roomId = isDirectChat.value
         ? currentDirectRoom.value?.id
         : currentRoom.value?.id;
     if (roomId == null) return;
-    connectionService.pinMessage(
-      roomId,
-      messageId,
-      isDirect: isDirectChat.value,
-    );
+    try {
+      await apiClient.pinMessage(messageId);
+      _applyLocalPinState(messageId, pinned: true);
+    } catch (e) {
+      showMessageCallback("Failed to pin message: $e");
+    }
+  }
+
+  Future<void> unpinMessage(String messageId) async {
+    final roomId = isDirectChat.value
+        ? currentDirectRoom.value?.id
+        : currentRoom.value?.id;
+    if (roomId == null) return;
+    try {
+      await apiClient.unpinMessage(messageId);
+      _applyLocalPinState(messageId, pinned: false);
+    } catch (e) {
+      showMessageCallback("Failed to unpin message: $e");
+    }
   }
 
   // SFU Methods
@@ -742,6 +768,15 @@ class HomeController {
             chatMessages.value = newList;
           }
           break;
+        case 'message_pin_updated':
+          if (data is Map && data['message'] is Map) {
+            final message = ChatMessage.fromJson(
+              Map<String, dynamic>.from(data['message']),
+            );
+            _upsertMessage(message);
+            _syncPinnedMessage(message);
+          }
+          break;
         case 'direct_call_started':
           final roomId = data['room_id'];
           final callId = data['id'];
@@ -806,13 +841,21 @@ class HomeController {
 
   void _processIncomingMessage(Map<String, dynamic> data) {
     final chatMsg = ChatMessage.fromJson(data);
+    _upsertMessage(chatMsg);
+  }
 
+  void _upsertMessage(ChatMessage chatMsg) {
     // Deduplicate: replace matching optimistic message
     bool replaced = false;
     final currentMessages = List<ChatMessage>.from(chatMessages.value);
 
     for (int i = 0; i < currentMessages.length; i++) {
       final m = currentMessages[i];
+      if (m.id == chatMsg.id) {
+        currentMessages[i] = chatMsg;
+        replaced = true;
+        break;
+      }
       if (m.senderId == chatMsg.senderId &&
           m.status == "sending" &&
           (m.content == chatMsg.content || m.id.startsWith("local"))) {
@@ -829,6 +872,53 @@ class HomeController {
       _sortMessages();
       _markActiveRoomRead();
       resolveUsers([chatMsg]);
+    }
+    _syncPinnedMessage(chatMsg);
+  }
+
+  Future<void> _loadPinnedMessages(
+    String roomId, {
+    required bool isDirect,
+  }) async {
+    if (isDirect) {
+      pinnedMessages.value = chatMessages.value
+          .where((message) => message.pinnedAt != null)
+          .toList();
+      return;
+    }
+    final pins = await apiClient.getPinnedMessages(roomId);
+    pinnedMessages.value = pins;
+    resolveUsers(pins);
+  }
+
+  void _syncPinnedMessage(ChatMessage message) {
+    final current = List<ChatMessage>.from(pinnedMessages.value);
+    current.removeWhere((item) => item.id == message.id);
+    if (message.pinnedAt != null) {
+      current.insert(0, message);
+    }
+    pinnedMessages.value = current;
+  }
+
+  void _applyLocalPinState(String messageId, {required bool pinned}) {
+    ChatMessage? changed;
+    chatMessages.value = chatMessages.value.map((message) {
+      if (message.id != messageId) return message;
+      changed = ChatMessage.fromJson({
+        ...message.toJson(),
+        'pinned_at': pinned ? DateTime.now().toIso8601String() : null,
+        'pinned_by': pinned ? _userId : null,
+      });
+      return changed!;
+    }).toList();
+    if (changed != null) {
+      _syncPinnedMessage(changed!);
+      return;
+    }
+    if (!pinned) {
+      pinnedMessages.value = pinnedMessages.value
+          .where((message) => message.id != messageId)
+          .toList();
     }
   }
 
@@ -854,6 +944,7 @@ class HomeController {
     directRooms.dispose();
     currentDirectRoom.dispose();
     chatMessages.dispose();
+    pinnedMessages.dispose();
     isDirectChat.dispose();
     typingUsers.dispose();
     nicknameVersion.dispose();

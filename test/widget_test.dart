@@ -8,7 +8,10 @@ import 'package:gritos_client/core/realtime/connection_service.dart';
 void main() {
   testWidgets('shows login screen', (WidgetTester tester) async {
     final apiClient = ApiClient();
-    final connectionService = ConnectionService(WsClient(apiClient: apiClient));
+    final connectionService = ConnectionService(
+      WsClient(apiClient: apiClient),
+      apiClient: apiClient,
+    );
 
     await tester.pumpWidget(
       MyApp(
