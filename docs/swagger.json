@@ -5,7 +5,7 @@
         "description": "REST API for chat, servers, rooms, messages and friend management.\nAuthentication is based on HTTP-only cookies set by the backend.",
         "title": "VIMH API",
         "contact": {},
-        "version": "1.5.0"
+        "version": "1.6.0"
     },
     "host": "",
     "basePath": "/api",

@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/logging/app_logger.dart';
 import '../../../core/realtime/event_transport.dart';
+import 'android_native_webrtc_sfu_bridge.dart';
 import 'ice_restart_controller.dart';
 
 // Unified Plan; Restart ICE; Perfect Negotiation; Trickle ICE; Transceivers; Polite Peer - Client; Server Authority
@@ -40,6 +41,7 @@ class WebRtcSfuService {
   final AppLogger _log;
   final IceRestartController _iceRestartController;
 
+  AndroidNativeWebRtcSfuBridge? _nativeAndroid;
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   final Map<String, RTCRtpSender> _sendersByKind = {};
@@ -146,6 +148,11 @@ class WebRtcSfuService {
     final configuration = await _loadRtcConfiguration();
     _rtcConfiguration = configuration;
     unawaited(_warmupTurn(configuration));
+
+    if (_shouldUseNativeAndroidWebRtc) {
+      await _initializeNativeAndroid(configuration);
+      return;
+    }
 
     _peerConnection = await createPeerConnection(configuration);
     await _configureMobileAudio();
@@ -280,6 +287,48 @@ class WebRtcSfuService {
     };
 
     await _configureMobileAudio();
+  }
+
+  bool get _shouldUseNativeAndroidWebRtc => !kIsWeb && Platform.isAndroid;
+
+  Future<void> _initializeNativeAndroid(
+    Map<String, dynamic> configuration,
+  ) async {
+    await _configureMobileAudio();
+    final native = AndroidNativeWebRtcSfuBridge(
+      roomId: roomId,
+      logger: _log.child('NativeAndroid'),
+      onLocalDescription: (type, sdp) {
+        _log.info(
+          'native local description created',
+          data: {'type': type, 'sdp_length': sdp.length},
+        );
+        if (type == 'answer') {
+          transport.sfuSendAnswer(roomId, sdp, type);
+        } else if (type == 'offer') {
+          transport.sfuSendOffer(roomId, sdp, type);
+        }
+      },
+      onIceCandidate: (candidate) {
+        transport.sfuSendIceCandidate(roomId, candidate);
+      },
+      onConnectionState: _handleNativeConnectionState,
+      onIceConnectionState: _handleNativeIceConnectionState,
+      onIceGatheringState: _handleNativeIceGatheringState,
+      onSignalingState: _handleNativeSignalingState,
+      onRemoteTrack: _handleNativeRemoteTrack,
+      onIceRestartNeeded: restartIce,
+    );
+    _nativeAndroid = native;
+    await native.create(
+      configuration: configuration,
+      useCommunicationAudio: useCommunicationAudio,
+    );
+    _isCameraOff.value = true;
+    _isMicMuted.value = false;
+    _localStreamController.add(null);
+    await refreshMediaDevices();
+    _log.info('native Android peer connection created', data: configuration);
   }
 
   Future<Map<String, dynamic>> _loadRtcConfiguration({
@@ -426,6 +475,106 @@ class WebRtcSfuService {
     return _turnWarmupInFlight;
   }
 
+  void _handleNativeConnectionState(String state) {
+    final next = _nativePeerConnectionState(state);
+    _log.info('native peer connection state changed', data: {'state': state});
+    if (_disposed) return;
+    _connectionStateValue.value = next;
+    _connectionStateController.add(next);
+    if (next == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+      _connectedAt = DateTime.now();
+      _noInboundSince = null;
+      _lastInboundBytes = null;
+    } else if (next == RTCPeerConnectionState.RTCPeerConnectionStateClosed ||
+        next == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+      _connectedAt = null;
+      _noInboundSince = null;
+    }
+  }
+
+  void _handleNativeIceConnectionState(String state) {
+    final next = _nativeIceConnectionState(state);
+    _iceConnectionState = next;
+    _log.info('native ICE connection state changed', data: {'state': state});
+    if (next == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
+      unawaited(_switchToRelayAndRestart('native-ice-disconnected'));
+    }
+    _iceRestartController.handleState(
+      next,
+      requestRestart: (reason) => restartIce(reason),
+    );
+  }
+
+  void _handleNativeIceGatheringState(String state) {
+    _iceGatheringState = _nativeIceGatheringState(state);
+    _log.debug('native ICE gathering state changed', data: {'state': state});
+  }
+
+  void _handleNativeSignalingState(String state) {
+    _signalingState = _nativeSignalingState(state);
+    _log.debug('native signaling state changed', data: {'state': state});
+  }
+
+  void _handleNativeRemoteTrack(Map<String, dynamic> data) {
+    final kind = data['kind']?.toString();
+    final trackId = data['track_id']?.toString();
+    _log.info('native remote track received', data: data);
+    if (kind == 'audio' && trackId != null && trackId.isNotEmpty) {
+      _seenRemoteTrackIds.add(trackId);
+      _remoteAudioTracksById.remove(trackId);
+      _remoteAudioTrackCount.value = _seenRemoteTrackIds.length;
+    }
+  }
+
+  RTCPeerConnectionState _nativePeerConnectionState(String state) {
+    return switch (state) {
+      'new' => RTCPeerConnectionState.RTCPeerConnectionStateNew,
+      'connecting' => RTCPeerConnectionState.RTCPeerConnectionStateConnecting,
+      'connected' => RTCPeerConnectionState.RTCPeerConnectionStateConnected,
+      'disconnected' =>
+        RTCPeerConnectionState.RTCPeerConnectionStateDisconnected,
+      'failed' => RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+      'closed' => RTCPeerConnectionState.RTCPeerConnectionStateClosed,
+      _ => RTCPeerConnectionState.RTCPeerConnectionStateNew,
+    };
+  }
+
+  RTCIceConnectionState _nativeIceConnectionState(String state) {
+    return switch (state) {
+      'new' => RTCIceConnectionState.RTCIceConnectionStateNew,
+      'checking' => RTCIceConnectionState.RTCIceConnectionStateChecking,
+      'connected' => RTCIceConnectionState.RTCIceConnectionStateConnected,
+      'completed' => RTCIceConnectionState.RTCIceConnectionStateCompleted,
+      'failed' => RTCIceConnectionState.RTCIceConnectionStateFailed,
+      'disconnected' => RTCIceConnectionState.RTCIceConnectionStateDisconnected,
+      'closed' => RTCIceConnectionState.RTCIceConnectionStateClosed,
+      _ => RTCIceConnectionState.RTCIceConnectionStateNew,
+    };
+  }
+
+  RTCIceGatheringState _nativeIceGatheringState(String state) {
+    return switch (state) {
+      'new' => RTCIceGatheringState.RTCIceGatheringStateNew,
+      'gathering' => RTCIceGatheringState.RTCIceGatheringStateGathering,
+      'complete' => RTCIceGatheringState.RTCIceGatheringStateComplete,
+      _ => RTCIceGatheringState.RTCIceGatheringStateNew,
+    };
+  }
+
+  RTCSignalingState _nativeSignalingState(String state) {
+    return switch (state) {
+      'stable' => RTCSignalingState.RTCSignalingStateStable,
+      'have-local-offer' => RTCSignalingState.RTCSignalingStateHaveLocalOffer,
+      'have-remote-offer' => RTCSignalingState.RTCSignalingStateHaveRemoteOffer,
+      'have-local-pranswer' =>
+        RTCSignalingState.RTCSignalingStateHaveLocalPrAnswer,
+      'have-remote-pranswer' =>
+        RTCSignalingState.RTCSignalingStateHaveRemotePrAnswer,
+      'closed' => RTCSignalingState.RTCSignalingStateClosed,
+      _ => RTCSignalingState.RTCSignalingStateStable,
+    };
+  }
+
   void _startInboundStatsWatch() {
     _inboundStatsTimer ??= Timer.periodic(const Duration(seconds: 2), (_) {
       unawaited(_checkInboundStats());
@@ -486,6 +635,28 @@ class WebRtcSfuService {
   }
 
   Future<void> _switchToRelayAndRestart(String reason) async {
+    final native = _nativeAndroid;
+    if (native != null) {
+      if (_relayFallbackInFlight || _relayFallbackUsed) return;
+      _relayFallbackInFlight = true;
+      _relayFallbackUsed = true;
+      _noInboundSince = null;
+      try {
+        final relayConfig = await _loadRtcConfiguration(
+          forceRelay: true,
+          bypassCache: true,
+        );
+        _rtcConfiguration = relayConfig;
+        unawaited(_warmupTurn(relayConfig));
+        await native.switchToRelay(configuration: relayConfig, reason: reason);
+      } catch (e) {
+        _log.warn('failed to switch native WebRTC to relay', data: '$e');
+      } finally {
+        _relayFallbackInFlight = false;
+      }
+      return;
+    }
+
     final peerConnection = _peerConnection;
     final config = _rtcConfiguration;
     if (peerConnection == null || config == null) return;
@@ -783,6 +954,17 @@ class WebRtcSfuService {
   }
 
   Future<void> handleSfuOffer(String sdp, String type) async {
+    final native = _nativeAndroid;
+    if (native != null) {
+      _log.info(
+        'native handling remote offer',
+        data: {'type': type, 'sdp_length': sdp.length},
+      );
+      await native.handleRemoteDescription(type: type, sdp: sdp);
+      _hasRemoteDescription = true;
+      return;
+    }
+
     _log.info(
       'handling remote offer',
       data: {'type': type, 'sdp_length': sdp.length},
@@ -824,6 +1006,17 @@ class WebRtcSfuService {
   }
 
   Future<void> handleSfuAnswer(String sdp, String type) async {
+    final native = _nativeAndroid;
+    if (native != null) {
+      _log.info(
+        'native handling remote answer',
+        data: {'type': type, 'sdp_length': sdp.length},
+      );
+      await native.handleRemoteDescription(type: type, sdp: sdp);
+      _hasRemoteDescription = true;
+      return;
+    }
+
     final signalingState =
         await _peerConnection!.getSignalingState() ??
         RTCSignalingState.RTCSignalingStateClosed;
@@ -851,6 +1044,12 @@ class WebRtcSfuService {
   Future<void> handleSfuIceCandidate(
     Map<String, dynamic>? candidateData,
   ) async {
+    final native = _nativeAndroid;
+    if (native != null) {
+      await native.addIceCandidate(candidateData);
+      return;
+    }
+
     try {
       if (candidateData == null) {
         // End of candidates
@@ -903,6 +1102,12 @@ class WebRtcSfuService {
       'microphone_enabled': !_isMicMuted.value,
       'camera_enabled': !_isCameraOff.value,
     });
+
+    final native = _nativeAndroid;
+    if (native != null) {
+      unawaited(native.startOffer('sfu-joined'));
+      return;
+    }
 
     unawaited(_negotiate("sfu-joined"));
   }
@@ -1069,6 +1274,16 @@ class WebRtcSfuService {
     };
 
     final peerConnection = _peerConnection;
+    final native = _nativeAndroid;
+    if (native != null) {
+      try {
+        values.addAll(await native.getDebugSnapshot());
+      } catch (e) {
+        values['native stats error'] = e.toString();
+      }
+      return RtcDebugSnapshot(capturedAt: DateTime.now(), values: values);
+    }
+
     if (peerConnection == null || _disposed) {
       values['peer connection'] = 'closed';
       return RtcDebugSnapshot(capturedAt: DateTime.now(), values: values);
@@ -1208,6 +1423,20 @@ class WebRtcSfuService {
 
   /// Sets the mute state for a specific track type.
   Future<void> setMuted(String kind, bool muted) async {
+    final native = _nativeAndroid;
+    if (native != null) {
+      await native.setMuted(kind, muted);
+      if (kind == 'audio') {
+        _isMicMuted.value = muted;
+      } else if (kind == 'video') {
+        _isCameraOff.value = muted;
+      }
+      sendMediaState({
+        kind == 'audio' ? 'microphone_enabled' : 'camera_enabled': !muted,
+      });
+      return;
+    }
+
     if (_localStream == null) return;
     for (var track in _localStream!.getTracks()) {
       if (track.kind == kind) {
@@ -1239,6 +1468,29 @@ class WebRtcSfuService {
     _disposed = true;
     _iceRestartController.dispose();
     _stopInboundStatsWatch();
+    final native = _nativeAndroid;
+    _nativeAndroid = null;
+    if (native != null) {
+      await native.close();
+      await _resetMobileAudioRoute();
+
+      await _onTrackController.close();
+      await _connectionStateController.close();
+      await _localStreamController.close();
+      _connectionStateValue.dispose();
+      _isMicMuted.dispose();
+      _isCameraOff.dispose();
+      _participants.dispose();
+      _activeSpeakers.dispose();
+      _remoteAudioTrackCount.dispose();
+      _mediaDevices.dispose();
+      _selectedAudioInputId.dispose();
+      _selectedVideoInputId.dispose();
+      _videoQuality.dispose();
+      _stereoAudio.dispose();
+      return;
+    }
+
     final peerConnection = _peerConnection;
     final localStream = _localStream;
     _peerConnection = null;

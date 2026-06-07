@@ -49,4 +49,5 @@ flutter {
 
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("io.github.webrtc-sdk:android:144.7559.01")
 }

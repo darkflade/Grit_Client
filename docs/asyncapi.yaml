@@ -2,7 +2,7 @@ asyncapi: 2.6.0
 id: urn:vimh:event-transport-api
 info:
   title: VIMH Event Transport API
-  version: 1.5.0
+  version: 1.6.0
   contact:
     name: VIMH API maintainers
   description: |

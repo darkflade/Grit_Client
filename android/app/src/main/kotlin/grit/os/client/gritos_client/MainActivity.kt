@@ -15,6 +15,8 @@ import java.util.ArrayDeque
 class MainActivity : FlutterActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var webTransportChannel: MethodChannel
+    private lateinit var nativeWebRtcChannel: MethodChannel
+    private lateinit var nativeWebRtcController: NativeWebRtcSfuController
     private var webView: WebView? = null
     private var connected = false
     private val pendingMessages = ArrayDeque<String>()
@@ -31,9 +33,16 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        nativeWebRtcChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "gritos_client/native_webrtc_sfu")
+        nativeWebRtcController = NativeWebRtcSfuController(this, nativeWebRtcChannel)
+        nativeWebRtcChannel.setMethodCallHandler(nativeWebRtcController)
     }
 
     override fun onDestroy() {
+        if (::nativeWebRtcController.isInitialized) {
+            nativeWebRtcController.close()
+        }
         destroyWebTransport()
         super.onDestroy()
     }
