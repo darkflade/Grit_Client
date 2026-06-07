@@ -1,6 +1,7 @@
 package grit.os.client.gritos_client
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
@@ -15,6 +16,8 @@ import org.webrtc.MediaStream
 import org.webrtc.MediaStreamTrack
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
+import org.webrtc.RTCStatsCollectorCallback
+import org.webrtc.RTCStatsReport
 import org.webrtc.RtpReceiver
 import org.webrtc.RtpTransceiver
 import org.webrtc.SdpObserver
@@ -46,6 +49,9 @@ class NativeWebRtcSfuController(
     private var lastConnectionState = "new"
     private var lastGatheringState = "new"
     private var lastSignalingState = "stable"
+    private var localCandidate: String? = null
+    private var remoteCandidate: String? = null
+    private var selectedPairState: String? = null
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         runOnMain {
@@ -117,18 +123,22 @@ class NativeWebRtcSfuController(
         localAudioSource = requireNotNull(factory).createAudioSource(constraints)
         localAudioTrack = requireNotNull(factory).createAudioTrack("native-audio-$roomId", localAudioSource)
         localAudioTrack?.setEnabled(true)
-        pc.addTrack(localAudioTrack, listOf(roomId))
 
         try {
             pc.addTransceiver(
-                MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO,
+                localAudioTrack,
                 RtpTransceiver.RtpTransceiverInit(
-                    RtpTransceiver.RtpTransceiverDirection.RECV_ONLY,
+                    RtpTransceiver.RtpTransceiverDirection.SEND_ONLY,
+                    listOf(roomId),
                 ),
             )
         } catch (error: Throwable) {
-            emit("onLog", mapOf("level" to "warn", "message" to "video recvonly transceiver failed: ${error.message}"))
+            pc.addTrack(localAudioTrack, listOf(roomId))
+            emit("onLog", mapOf("level" to "warn", "message" to "audio transceiver failed, falling back to addTrack: ${error.message}"))
         }
+
+        // We don't pre-allocate transceivers here anymore because the server 
+        // will add them on negotiation. Pre-allocating can cause track count mismatch.
 
         emit("onLog", mapOf("level" to "info", "message" to "native Android PeerConnection created"))
         result.success(null)
@@ -209,6 +219,7 @@ class NativeWebRtcSfuController(
         description: SessionDescription,
         result: MethodChannel.Result,
     ) {
+        emit("onLog", mapOf("level" to "debug", "message" to "native setting remote SDP: ${description.type.name}"))
         pc.setRemoteDescription(object : SdpObserverAdapter() {
             override fun onSetSuccess() {
                 hasRemoteDescription = true
@@ -265,6 +276,9 @@ class NativeWebRtcSfuController(
             return
         }
         peerConnection?.addIceCandidate(ice)
+        if (hasRemoteDescription) {
+            remoteCandidate = "mid:${ice.sdpMid}, index:${ice.sdpMLineIndex}, ${ice.sdp.take(15)}..."
+        }
         result.success(null)
     }
 
@@ -303,19 +317,100 @@ class NativeWebRtcSfuController(
     }
 
     private fun getDebugSnapshot(result: MethodChannel.Result) {
-        result.success(
-            mapOf(
-                "implementation" to "android-native-webrtc",
-                "room" to roomId,
-                "connection" to lastConnectionState,
-                "ice" to lastIceState,
-                "gathering" to lastGatheringState,
-                "signaling" to lastSignalingState,
-                "relay fallback" to if (relayFallbackUsed) "used" else "not used",
-                "local audio" to if (localAudioTrack?.enabled() == true) "enabled" else "muted",
-                "pending candidates" to pendingRemoteCandidates.size.toString(),
+        val pc = peerConnection
+        if (pc == null) {
+            result.success(
+                mapOf(
+                    "implementation" to "android-native-webrtc",
+                    "status" to "closed"
+                )
             )
-        )
+            return
+        }
+
+        pc.getStats(object : RTCStatsCollectorCallback {
+            override fun onStatsDelivered(report: RTCStatsReport) {
+                val statsMap = mutableMapOf<String, String>()
+                statsMap["implementation"] = "android-native-webrtc"
+                statsMap["room"] = roomId
+                statsMap["connection"] = lastConnectionState
+                statsMap["ice"] = lastIceState
+                statsMap["gathering"] = lastGatheringState
+                statsMap["signaling"] = lastSignalingState
+                statsMap["relay fallback"] = if (relayFallbackUsed) "used" else "not used"
+                statsMap["local audio"] = if (localAudioTrack?.enabled() == true) "enabled" else "muted"
+                statsMap["pending candidates"] = pendingRemoteCandidates.size.toString()
+
+                var rtt = "-"
+                var jitter = "-"
+                var packetLoss = "-"
+                var bytesReceived = 0L
+                var bytesSent = 0L
+
+                for (stats in report.statsMap.values) {
+                    val members = stats.members
+                    when (stats.type) {
+                        "inbound-rtp" -> {
+                            if (members["kind"] == "audio") {
+                                bytesReceived += (members["bytesReceived"] as? Number)?.toLong() ?: 0L
+                                jitter = members["jitter"]?.let { String.format("%.1f ms", (it as Number).toDouble() * 1000.0) } ?: jitter
+                                val lost = (members["packetsLost"] as? Number)?.toLong() ?: 0L
+                                val rec = (members["packetsReceived"] as? Number)?.toLong() ?: 0L
+                                if (rec + lost > 0) {
+                                    packetLoss = String.format("%.1f%%", (lost.toDouble() / (rec + lost).toDouble()) * 100.0)
+                                }
+                            }
+                        }
+                        "outbound-rtp" -> {
+                            if (members["kind"] == "audio") {
+                                bytesSent += (members["bytesSent"] as? Number)?.toLong() ?: 0L
+                            }
+                        }
+                        "candidate-pair" -> {
+                            if (members["selected"] == true || members["nominated"] == true) {
+                                rtt = members["currentRoundTripTime"]?.let { String.format("%.0f ms", (it as Number).toDouble() * 1000.0) } ?: rtt
+                                selectedPairState = members["state"]?.toString() ?: selectedPairState
+                                
+                                val localId = members["localCandidateId"] as? String
+                                val remoteId = members["remoteCandidateId"] as? String
+                                
+                                localId?.let { id ->
+                                    report.statsMap[id]?.let { s ->
+                                        val type = s.members["candidateType"] ?: s.members["type"] ?: "unknown"
+                                        val proto = s.members["protocol"] ?: "unknown"
+                                        val ip = s.members["ip"] ?: s.members["address"] ?: "unknown"
+                                        val port = s.members["port"] ?: "unknown"
+                                        localCandidate = "$type $proto $ip:$port"
+                                    }
+                                }
+                                remoteId?.let { id ->
+                                    report.statsMap[id]?.let { s ->
+                                        val type = s.members["candidateType"] ?: s.members["type"] ?: "unknown"
+                                        val proto = s.members["protocol"] ?: "unknown"
+                                        val ip = s.members["ip"] ?: s.members["address"] ?: "unknown"
+                                        val port = s.members["port"] ?: "unknown"
+                                        remoteCandidate = "$type $proto $ip:$port"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                statsMap["rtt"] = rtt
+                statsMap["jitter"] = jitter
+                statsMap["packet loss"] = packetLoss
+                statsMap["in audio bytes"] = bytesReceived.toString()
+                statsMap["out bytes"] = bytesSent.toString()
+                statsMap["local candidate"] = localCandidate ?: "-"
+                statsMap["remote candidate"] = remoteCandidate ?: "-"
+                statsMap["candidate pair"] = selectedPairState ?: "-"
+
+                runOnMain {
+                    result.success(statsMap)
+                }
+            }
+        })
     }
 
     private fun observer(): PeerConnection.Observer {
@@ -344,6 +439,7 @@ class NativeWebRtcSfuController(
             }
 
             override fun onIceCandidate(candidate: IceCandidate) {
+                localCandidate = "mid:${candidate.sdpMid}, index:${candidate.sdpMLineIndex}, ${candidate.sdp.take(15)}..."
                 emit(
                     "onIceCandidate",
                     mapOf(
@@ -379,7 +475,6 @@ class NativeWebRtcSfuController(
             override fun onRemoveStream(stream: MediaStream) = Unit
             override fun onDataChannel(dataChannel: org.webrtc.DataChannel) = Unit
             override fun onRemoveTrack(receiver: RtpReceiver) = Unit
-            override fun onTrack(transceiver: RtpTransceiver) = Unit
         }
     }
 
@@ -393,10 +488,20 @@ class NativeWebRtcSfuController(
                         .createInitializationOptions(),
                 )
             }
+
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+
             audioDeviceModule = JavaAudioDeviceModule.builder(context)
+                .setAudioAttributes(audioAttributes)
                 .setUseHardwareAcousticEchoCanceler(true)
                 .setUseHardwareNoiseSuppressor(true)
+                .setUseStereoInput(false)
+                .setUseStereoOutput(false)
                 .createAudioDeviceModule()
+
             factory = PeerConnectionFactory.builder()
                 .setAudioDeviceModule(audioDeviceModule)
                 .createPeerConnectionFactory()
@@ -439,6 +544,13 @@ class NativeWebRtcSfuController(
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
         audioManager.mode = if (useCommunicationAudio) AudioManager.MODE_IN_COMMUNICATION else AudioManager.MODE_NORMAL
         audioManager.isSpeakerphoneOn = true
+        
+        // Ensure volume is up
+        audioManager.setStreamVolume(
+            if (useCommunicationAudio) AudioManager.STREAM_VOICE_CALL else AudioManager.STREAM_MUSIC,
+            audioManager.getStreamMaxVolume(if (useCommunicationAudio) AudioManager.STREAM_VOICE_CALL else AudioManager.STREAM_MUSIC) / 2,
+            0
+        )
     }
 
     private fun restoreAudioRoute() {
@@ -448,6 +560,7 @@ class NativeWebRtcSfuController(
     }
 
     private fun emitLocalDescription(description: SessionDescription) {
+        emit("onLog", mapOf("level" to "debug", "message" to "native local SDP created: ${description.type.name}"))
         emit(
             "onLocalDescription",
             mapOf(

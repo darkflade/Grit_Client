@@ -295,7 +295,8 @@ class WebRtcSfuService {
     Map<String, dynamic> configuration,
   ) async {
     await _configureMobileAudio();
-    final native = AndroidNativeWebRtcSfuBridge(
+    late final AndroidNativeWebRtcSfuBridge native;
+    native = AndroidNativeWebRtcSfuBridge(
       roomId: roomId,
       logger: _log.child('NativeAndroid'),
       onLocalDescription: (type, sdp) {
@@ -318,6 +319,7 @@ class WebRtcSfuService {
       onSignalingState: _handleNativeSignalingState,
       onRemoteTrack: _handleNativeRemoteTrack,
       onIceRestartNeeded: restartIce,
+      onRenegotiationNeeded: (reason) => native.startOffer(reason),
     );
     _nativeAndroid = native;
     await native.create(

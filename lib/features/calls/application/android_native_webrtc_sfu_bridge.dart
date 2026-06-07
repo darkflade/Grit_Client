@@ -16,6 +16,7 @@ class AndroidNativeWebRtcSfuBridge {
     required this.onSignalingState,
     required this.onRemoteTrack,
     required this.onIceRestartNeeded,
+    required this.onRenegotiationNeeded,
   }) {
     _channel.setMethodCallHandler(_handleNativeEvent);
   }
@@ -34,6 +35,7 @@ class AndroidNativeWebRtcSfuBridge {
   final void Function(String state) onSignalingState;
   final void Function(Map<String, dynamic> track) onRemoteTrack;
   final void Function(String reason) onIceRestartNeeded;
+  final void Function(String reason) onRenegotiationNeeded;
 
   Future<void> create({
     required Map<String, dynamic> configuration,
@@ -135,7 +137,7 @@ class AndroidNativeWebRtcSfuBridge {
         _logNative(data);
         break;
       case 'onRenegotiationNeeded':
-        logger.debug('native renegotiation needed');
+        onRenegotiationNeeded('native-renegotiation');
         break;
       default:
         logger.debug(
