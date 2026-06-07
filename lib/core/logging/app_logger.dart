@@ -18,6 +18,12 @@ class AppLogger {
 
   final String scope;
 
+  static const _reset = '\x1B[0m';
+  static const _cyan = '\x1B[36m';
+  static const _green = '\x1B[32m';
+  static const _yellow = '\x1B[33m';
+  static const _red = '\x1B[31m';
+
   void debug(String message, {Object? data}) {
     _write(LogLevel.debug, message, data: data);
   }
@@ -62,10 +68,21 @@ class AppLogger {
     if (error != null) {
       buffer.write(' | error=$error');
     }
-    debugPrint(buffer.toString());
+    debugPrint(_colorize(level, buffer.toString()));
     if (stackTrace != null && level == LogLevel.error) {
-      debugPrint(stackTrace.toString());
+      debugPrint(_colorize(level, stackTrace.toString()));
     }
+  }
+
+  static String _colorize(LogLevel level, String line) {
+    if (kReleaseMode) return line;
+    final color = switch (level) {
+      LogLevel.debug => _cyan,
+      LogLevel.info => _green,
+      LogLevel.warn => _yellow,
+      LogLevel.error => _red,
+    };
+    return '$color$line$_reset';
   }
 
   static String summarizeEventPayload(Object? payload) {

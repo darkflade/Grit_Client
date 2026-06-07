@@ -127,7 +127,6 @@ class WebRtcSfuService {
        );
 
   Future<void> initialize() async {
-  
     Map<Permission, PermissionStatus> statuses = await [
       Permission.camera,
       Permission.microphone,
@@ -771,7 +770,7 @@ class WebRtcSfuService {
           AndroidAudioConfiguration.communication,
         );
         await Helper.setSpeakerphoneOn(true);
-        
+
         return;
       }
       if (Platform.isIOS) {
