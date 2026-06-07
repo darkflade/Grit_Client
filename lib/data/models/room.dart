@@ -15,11 +15,21 @@ class Room {
 
   factory Room.fromJson(Map<String, dynamic> json) {
     return Room(
-      id: json["id"],
-      serverId: json["server_id"],
-      name: json["name"],
-      type: json["type"],
-      createdAt: DateTime.parse(json["created_at"]),
+      id: json["id"] as String,
+      serverId: json["server_id"] as String? ?? '',
+      name: json["name"] as String? ?? 'Room',
+      type: json["type"] as String? ?? 'chat',
+      createdAt: DateTime.parse(
+        json["created_at"] as String? ?? DateTime.now().toIso8601String(),
+      ),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'server_id': serverId,
+    'name': name,
+    'type': type,
+    'created_at': createdAt.toIso8601String(),
+  };
 }

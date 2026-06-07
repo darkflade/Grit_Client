@@ -71,10 +71,12 @@ class WsClient extends JsonEventTransport {
   }) {
     _channel?.stream.listen(
       (message) {
-        _log.debug(
-          '<= message',
-          data: AppLogger.summarizeEventPayload(message),
-        );
+        if (AppLogger.shouldLogRealtimePayload(message)) {
+          _log.debug(
+            '<= message',
+            data: AppLogger.summarizeEventPayload(message),
+          );
+        }
         onMessage(message);
       },
       onDone: () {

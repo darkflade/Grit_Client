@@ -114,10 +114,12 @@ class WebTransportClient extends JsonEventTransport {
   Future<void> _handleNativeCall(MethodCall call) async {
     switch (call.method) {
       case "onMessage":
-        _log.debug(
-          '<= message',
-          data: AppLogger.summarizeEventPayload(call.arguments),
-        );
+        if (AppLogger.shouldLogRealtimePayload(call.arguments)) {
+          _log.debug(
+            '<= message',
+            data: AppLogger.summarizeEventPayload(call.arguments),
+          );
+        }
         _onMessage?.call(call.arguments);
         break;
       case "onClosed":

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class StorageService {
@@ -5,12 +7,15 @@ class StorageService {
 
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
+  static const String _authApiBaseUrlKey = 'auth_api_base_url';
   static const String _userDataKey = 'user_data';
   static const String _lastActiveServerIdKey = 'last_active_server_id';
   static const String _lastActiveRoomIdKey = 'last_active_room_id';
   static const String _lastActiveIsDirectKey = 'last_active_is_direct';
   static const String _themeModeKey = 'theme_mode';
   static const String _eventTransportModeKey = 'event_transport_mode';
+  static const String _apiBaseUrlKey = 'api_base_url';
+  static const String _customApiBaseUrlsKey = 'custom_api_base_urls';
 
   // Access Token
   Future<void> saveAccessToken(String token) async {
@@ -36,6 +41,18 @@ class StorageService {
 
   Future<void> deleteRefreshToken() async {
     await _storage.delete(key: _refreshTokenKey);
+  }
+
+  Future<void> saveAuthApiBaseUrl(String baseUrl) async {
+    await _storage.write(key: _authApiBaseUrlKey, value: baseUrl);
+  }
+
+  Future<String?> getAuthApiBaseUrl() async {
+    return await _storage.read(key: _authApiBaseUrlKey);
+  }
+
+  Future<void> deleteAuthApiBaseUrl() async {
+    await _storage.delete(key: _authApiBaseUrlKey);
   }
 
   // User Data
@@ -103,10 +120,38 @@ class StorageService {
     return await _storage.read(key: _eventTransportModeKey);
   }
 
+  Future<void> saveApiBaseUrl(String baseUrl) async {
+    await _storage.write(key: _apiBaseUrlKey, value: baseUrl);
+  }
+
+  Future<String?> getApiBaseUrl() async {
+    return await _storage.read(key: _apiBaseUrlKey);
+  }
+
+  Future<void> saveCustomApiBaseUrls(List<String> baseUrls) async {
+    await _storage.write(
+      key: _customApiBaseUrlsKey,
+      value: jsonEncode(baseUrls),
+    );
+  }
+
+  Future<List<String>> getCustomApiBaseUrls() async {
+    final raw = await _storage.read(key: _customApiBaseUrlsKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return [];
+      return decoded.whereType<String>().toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   // Clear all
   Future<void> clearAllAuthData() async {
     await deleteAccessToken();
     await deleteRefreshToken();
+    await deleteAuthApiBaseUrl();
     await deleteUserData();
     await _storage.delete(key: _lastActiveServerIdKey);
     await _storage.delete(key: _lastActiveRoomIdKey);

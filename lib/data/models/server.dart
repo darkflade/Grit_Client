@@ -15,11 +15,21 @@ class Server {
 
   factory Server.fromJson(Map<String, dynamic> json) {
     return Server(
-      id: json["id"],
-      ownerId: json["owner_id"],
-      name: json["name"],
-      iconUrl: json["icon_url"],
-      createdAt: DateTime.parse(json["created_at"]),
+      id: json["id"] as String,
+      ownerId: json["owner_id"] as String? ?? '',
+      name: json["name"] as String? ?? 'Server',
+      iconUrl: json["icon_url"] as String?,
+      createdAt: DateTime.parse(
+        json["created_at"] as String? ?? DateTime.now().toIso8601String(),
+      ),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'owner_id': ownerId,
+    'name': name,
+    'icon_url': iconUrl,
+    'created_at': createdAt.toIso8601String(),
+  };
 }

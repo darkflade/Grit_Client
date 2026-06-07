@@ -94,3 +94,58 @@ class ServerParticipantsResponse {
     );
   }
 }
+
+class RtcRoomParticipant {
+  final String userId;
+  final String? sessionId;
+  final bool micMuted;
+  final bool cameraOff;
+  final List<String> trackIds;
+
+  RtcRoomParticipant({
+    required this.userId,
+    this.sessionId,
+    required this.micMuted,
+    required this.cameraOff,
+    required this.trackIds,
+  });
+
+  factory RtcRoomParticipant.fromJson(Map<String, dynamic> json) {
+    final rawTrackIds = json['track_ids'] ?? json['trackIds'];
+    return RtcRoomParticipant(
+      userId: json['user_id'] as String? ?? '',
+      sessionId: json['session_id'] as String?,
+      micMuted: json['mic_muted'] as bool? ?? false,
+      cameraOff: json['camera_off'] as bool? ?? false,
+      trackIds: rawTrackIds is List
+          ? rawTrackIds.map((item) => item.toString()).toList()
+          : const <String>[],
+    );
+  }
+}
+
+class RtcRoomParticipantsResponse {
+  final String roomId;
+  final List<RtcRoomParticipant> participants;
+
+  RtcRoomParticipantsResponse({
+    required this.roomId,
+    required this.participants,
+  });
+
+  factory RtcRoomParticipantsResponse.fromJson(Map<String, dynamic> json) {
+    final rawParticipants = json['participants'];
+    return RtcRoomParticipantsResponse(
+      roomId: json['room_id'] as String? ?? '',
+      participants: rawParticipants is List
+          ? rawParticipants
+                .map(
+                  (item) => RtcRoomParticipant.fromJson(
+                    Map<String, dynamic>.from(item as Map),
+                  ),
+                )
+                .toList()
+          : const <RtcRoomParticipant>[],
+    );
+  }
+}

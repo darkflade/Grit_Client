@@ -33,6 +33,7 @@ class LoginController {
 
       if (accessToken != null) {
         await storageService.saveAccessToken(accessToken);
+        await storageService.saveAuthApiBaseUrl(apiClient.baseUrl);
         debugPrint("Access token saved.");
       } else {
         debugPrint("Access token not found in cookies after auth.");

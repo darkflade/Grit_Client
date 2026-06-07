@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../data/api/rest.dart';
 import '../../core/storage/storage_service.dart';
@@ -40,6 +41,7 @@ class HomeController {
   final isLoading = ValueNotifier<bool>(false);
   final isLoadingMore = ValueNotifier<bool>(false);
   final errorMessage = ValueNotifier<String?>(null);
+  final authInvalidated = ValueNotifier<bool>(false);
   final currentUser = ValueNotifier<User?>(null);
   final servers = ValueNotifier<List<Server>>([]);
   final currentServer = ValueNotifier<Server?>(null);
@@ -64,7 +66,11 @@ class HomeController {
   String? _activeDirectCallId;
   bool _activeCallIsDirect = false;
   Timer? _heartbeatTimer;
+  Timer? _sfuRecoveryTimer;
+  StreamSubscription? _sfuStateSubscription;
+  bool _disposed = false;
   String? get currentUserId => _userId;
+  bool get activeSfuIsDirectCall => _activeCallIsDirect;
 
   Completer<MessagePage?>? _snapshotCompleter;
 
@@ -79,7 +85,17 @@ class HomeController {
     isLoading.value = true;
     errorMessage.value = null;
     try {
-      final user = await apiClient.getMe();
+      User? user;
+      try {
+        user = await apiClient.getMe();
+      } on AuthIdentityNotFoundException {
+        await _clearInvalidAuth();
+        errorMessage.value =
+            "Session belongs to another server or deleted user. Please sign in again.";
+        authInvalidated.value = true;
+        isLoading.value = false;
+        return;
+      }
       if (user != null) {
         _userId = user.id;
         currentUser.value = user;
@@ -297,6 +313,110 @@ class HomeController {
       errorMessage.value = "Error selecting room: $e";
     }
     isLoading.value = false;
+  }
+
+  Future<void> createServer(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    try {
+      final server = await apiClient.createServer(trimmed);
+      if (server == null) return;
+      servers.value = [...servers.value, server];
+      connectionService.subscribeServer(server.id);
+      await selectServer(server);
+    } catch (e) {
+      showMessageCallback("Failed to create server: $e");
+    }
+  }
+
+  Future<void> createRoom(String name, {required String type}) async {
+    final server = currentServer.value;
+    final trimmed = name.trim();
+    if (server == null || trimmed.isEmpty) return;
+    try {
+      final room = await apiClient.createRoom(server.id, trimmed, type: type);
+      if (room == null) return;
+      if (!rooms.value.any((item) => item.id == room.id)) {
+        rooms.value = [...rooms.value, room];
+      }
+    } catch (e) {
+      showMessageCallback("Failed to create room: $e");
+    }
+  }
+
+  Future<String?> createServerInvite({
+    String role = "member",
+    int? expiresInHours,
+  }) async {
+    final server = currentServer.value;
+    if (server == null) return null;
+    try {
+      final invite = await apiClient.createServerInvitation(
+        server.id,
+        role: role,
+        expiresInHours: expiresInHours,
+      );
+      return invite?.token;
+    } catch (e) {
+      showMessageCallback("Failed to create invite: $e");
+      return null;
+    }
+  }
+
+  Future<void> acceptServerInvite(String token) async {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) return;
+    try {
+      await apiClient.acceptServerInvitation(trimmed);
+      final fetchedServers = await apiClient.getServers();
+      servers.value = fetchedServers;
+      for (final server in fetchedServers) {
+        connectionService.subscribeServer(server.id);
+      }
+      showMessageCallback("Invite accepted.");
+    } catch (e) {
+      showMessageCallback("Failed to accept invite: $e");
+    }
+  }
+
+  Future<void> updateMemberRole(
+    ServerParticipant participant, {
+    required String role,
+    required bool canInvite,
+    required bool canManageRooms,
+    required bool canManageServer,
+  }) async {
+    final server = currentServer.value;
+    if (server == null) return;
+    try {
+      await apiClient.updateServerMemberRole(
+        server.id,
+        participant.user.id,
+        role: role,
+        canInvite: canInvite,
+        canManageRooms: canManageRooms,
+        canManageServer: canManageServer,
+      );
+      await _loadServerParticipants(server.id);
+    } catch (e) {
+      showMessageCallback("Failed to update role: $e");
+    }
+  }
+
+  Future<void> removeServerMember(ServerParticipant participant) async {
+    final server = currentServer.value;
+    if (server == null) return;
+    try {
+      await apiClient.removeServerMember(server.id, participant.user.id);
+      serverParticipants.value = serverParticipants.value
+          .where((item) => item.user.id != participant.user.id)
+          .toList();
+      serverOnlineCount.value = serverParticipants.value
+          .where((item) => item.online)
+          .length;
+    } catch (e) {
+      showMessageCallback("Failed to remove member: $e");
+    }
   }
 
   Future<void> _loadServerParticipants(String serverId) async {
@@ -638,8 +758,60 @@ class HomeController {
     // If we are joining an existing call (accepting), we just join SFU.
     // However, joinSfuRoom is currently used for both.
     // Let's keep it simple for now, but be aware.
-    final sfu = await connectionService.joinSfuRoom(roomId);
+    final sfu = await connectionService.joinSfuRoom(
+      roomId,
+      localUserId: _userId,
+      useCommunicationAudio: isDirectCall,
+    );
     activeSfuService.value = sfu;
+    _watchSfuState(sfu);
+  }
+
+  void _watchSfuState(WebRtcSfuService sfu) {
+    _sfuStateSubscription?.cancel();
+    _sfuStateSubscription = sfu.connectionState.listen((state) {
+      if (_disposed || activeSfuService.value != sfu) return;
+      if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+        _scheduleSfuRecovery(sfu.roomId);
+      }
+    });
+  }
+
+  void _scheduleSfuRecovery(String roomId) {
+    if (_sfuRecoveryTimer != null) return;
+    _sfuRecoveryTimer = Timer(const Duration(seconds: 1), () {
+      _sfuRecoveryTimer = null;
+      unawaited(_recoverSfuSession(roomId));
+    });
+  }
+
+  Future<void> _recoverSfuSession(String roomId) async {
+    if (_disposed) return;
+    final failedSfu = activeSfuService.value;
+    if (failedSfu == null || failedSfu.roomId != roomId) return;
+
+    showMessageCallback("Voice connection dropped. Reconnecting...");
+    activeSfuService.value = null;
+    await _sfuStateSubscription?.cancel();
+    _sfuStateSubscription = null;
+
+    try {
+      await connectionService.leaveSfuRoom(roomId, failedSfu.sessionId ?? "");
+      if (_disposed) return;
+      final nextSfu = await connectionService.joinSfuRoom(
+        roomId,
+        localUserId: _userId,
+        useCommunicationAudio: _activeCallIsDirect,
+      );
+      if (_disposed) {
+        await connectionService.leaveSfuRoom(roomId, nextSfu.sessionId ?? "");
+        return;
+      }
+      activeSfuService.value = nextSfu;
+      _watchSfuState(nextSfu);
+    } catch (e) {
+      showMessageCallback("Failed to reconnect voice: $e");
+    }
   }
 
   Future<void> callFriend(String userId) async {
@@ -686,17 +858,20 @@ class HomeController {
   }
 
   Future<void> leaveSfu() async {
-    if (activeSfuService.value != null) {
-      final roomId = activeSfuService.value!.roomId;
+    final sfu = activeSfuService.value;
+    if (sfu != null) {
+      final roomId = sfu.roomId;
+      _sfuRecoveryTimer?.cancel();
+      _sfuRecoveryTimer = null;
+      await _sfuStateSubscription?.cancel();
+      _sfuStateSubscription = null;
       if (_activeCallIsDirect && _activeDirectCallId != null) {
         connectionService.directCallEnd(roomId, _activeDirectCallId!);
       }
-      // We need session_id for sfu_leave. For now, we use a placeholder or
-      // track it in ConnectionService. Let's use an empty string if unknown.
-      connectionService.leaveSfuRoom(roomId, "");
       activeSfuService.value = null;
       _activeDirectCallId = null;
       _activeCallIsDirect = false;
+      await connectionService.leaveSfuRoom(roomId, sfu.sessionId ?? "");
     }
   }
 
@@ -720,7 +895,12 @@ class HomeController {
   }
 
   void _stopSfuSession(String roomId) {
-    connectionService.leaveSfuRoom(roomId, "");
+    final sfu = activeSfuService.value;
+    _sfuRecoveryTimer?.cancel();
+    _sfuRecoveryTimer = null;
+    unawaited(_sfuStateSubscription?.cancel());
+    _sfuStateSubscription = null;
+    unawaited(connectionService.leaveSfuRoom(roomId, sfu?.sessionId ?? ""));
     activeSfuService.value = null;
     _activeDirectCallId = null;
     _activeCallIsDirect = false;
@@ -769,6 +949,53 @@ class HomeController {
               userCache[participant.user.id] = participant.user;
             }
             nicknameVersion.value++;
+          }
+          break;
+        case 'server_updated':
+          if (data is Map) {
+            final server = Server.fromJson(Map<String, dynamic>.from(data));
+            final updated = List<Server>.from(servers.value);
+            final index = updated.indexWhere((item) => item.id == server.id);
+            if (index >= 0) {
+              updated[index] = server;
+            } else {
+              updated.add(server);
+              connectionService.subscribeServer(server.id);
+            }
+            servers.value = updated;
+            if (currentServer.value?.id == server.id) {
+              currentServer.value = server;
+            }
+          }
+          break;
+        case 'server_member_removed':
+          if (data is Map) {
+            final serverId = data['server_id'];
+            final userId = data['user_id'];
+            if (userId == _userId) {
+              servers.value = servers.value
+                  .where((server) => server.id != serverId)
+                  .toList();
+              if (currentServer.value?.id == serverId) {
+                currentServer.value = null;
+                currentRoom.value = null;
+                rooms.value = [];
+                serverParticipants.value = [];
+                serverOnlineCount.value = 0;
+              }
+            } else if (serverId == currentServer.value?.id) {
+              serverParticipants.value = serverParticipants.value
+                  .where((participant) => participant.user.id != userId)
+                  .toList();
+              serverOnlineCount.value = serverParticipants.value
+                  .where((participant) => participant.online)
+                  .length;
+            }
+          }
+          break;
+        case 'server_role_updated':
+          if (data is Map && data['server_id'] == currentServer.value?.id) {
+            unawaited(_loadServerParticipants(currentServer.value!.id));
           }
           break;
         case 'server_rooms_snapshot':
@@ -1015,6 +1242,7 @@ class HomeController {
 
   Future<void> logout() async {
     isLoading.value = true;
+    await leaveSfu();
     try {
       await apiClient.logout();
     } catch (_) {}
@@ -1023,10 +1251,27 @@ class HomeController {
     isLoading.value = false;
   }
 
+  Future<void> _clearInvalidAuth() async {
+    await storageService.clearAllAuthData();
+    await apiClient.cookieJar.deleteAll();
+    connectionService.disconnect();
+  }
+
   void dispose() {
+    _disposed = true;
+    _sfuRecoveryTimer?.cancel();
+    _sfuRecoveryTimer = null;
+    unawaited(_sfuStateSubscription?.cancel());
+    final sfu = activeSfuService.value;
+    if (sfu != null) {
+      unawaited(
+        connectionService.leaveSfuRoom(sfu.roomId, sfu.sessionId ?? ""),
+      );
+    }
     isLoading.dispose();
     isLoadingMore.dispose();
     errorMessage.dispose();
+    authInvalidated.dispose();
     currentUser.dispose();
     servers.dispose();
     currentServer.dispose();

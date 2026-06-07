@@ -85,7 +85,13 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
     _controller.initialize();
+    _controller.authInvalidated.addListener(_handleAuthInvalidated);
     _scrollController.addListener(_scrollListener);
+  }
+
+  void _handleAuthInvalidated() {
+    if (!mounted || !_controller.authInvalidated.value) return;
+    Navigator.pushReplacementNamed(context, '/login');
   }
 
   Color _getStatusColor(String status) {
@@ -165,6 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _scrollController.removeListener(_scrollListener);
+    _controller.authInvalidated.removeListener(_handleAuthInvalidated);
     _scrollController.dispose();
     _controller.dispose();
     _messageTextController.dispose();
@@ -424,6 +431,9 @@ class _HomeScreenState extends State<HomeScreen> {
       valueListenable: _controller.activeSfuService,
       builder: (context, sfu, _) {
         if (sfu == null) return const SizedBox.shrink();
+        final isDirectCall = _controller.activeSfuIsDirectCall;
+        final title = isDirectCall ? 'Voice call' : 'Media session';
+        final leaveLabel = isDirectCall ? 'End' : 'Leave';
         return Column(
           children: [
             Container(
@@ -472,8 +482,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Voice session',
+                            Text(
+                              title,
                               style: TextStyle(fontWeight: FontWeight.w700),
                             ),
                             const SizedBox(height: 4),
@@ -516,6 +526,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ],
                         ),
+                      ),
+                      IconButton(
+                        tooltip: 'Call debug',
+                        icon: const Icon(Icons.bug_report_rounded),
+                        onPressed: () => _showCallDebugSheet(sfu),
                       ),
                     ],
                   ),
@@ -570,7 +585,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: _buildCallAction(
                           context,
                           icon: Icons.call_end_rounded,
-                          label: 'Leave',
+                          label: leaveLabel,
                           active: false,
                           danger: true,
                           onTap: _controller.leaveSfu,
@@ -819,14 +834,30 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                'SERVERS',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  letterSpacing: 1.1,
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'SERVERS',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Accept invite',
+                    icon: const Icon(Icons.input_rounded),
+                    onPressed: _showAcceptInviteDialog,
+                  ),
+                  IconButton(
+                    tooltip: 'Create server',
+                    icon: const Icon(Icons.add_rounded),
+                    onPressed: _showCreateServerDialog,
+                  ),
+                ],
               ),
             ),
             ...servers.map((server) {
@@ -951,10 +982,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
+              IconButton(
+                tooltip: 'Create invite',
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                onPressed: _showCreateInviteDialog,
+              ),
             ],
           ),
           const SizedBox(height: 24),
-          _buildOverviewSectionHeader('Rooms'),
+          _buildOverviewSectionHeader(
+            'Rooms',
+            action: IconButton(
+              tooltip: 'Create room',
+              icon: const Icon(Icons.add_rounded),
+              onPressed: _showCreateRoomDialog,
+            ),
+          ),
           ValueListenableBuilder<List<Room>>(
             valueListenable: _controller.rooms,
             builder: (context, rooms, _) {
@@ -1004,16 +1047,23 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildOverviewSectionHeader(String title) {
+  Widget _buildOverviewSectionHeader(String title, {Widget? action}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.1,
-        ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title.toUpperCase(),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ),
+          ?action,
+        ],
       ),
     );
   }
@@ -1060,14 +1110,333 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       title: Text(user.nickname, overflow: TextOverflow.ellipsis),
       subtitle: Text(participant.member.role, overflow: TextOverflow.ellipsis),
-      trailing: participant.subscribed
-          ? Icon(
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (participant.subscribed)
+            Icon(
               Icons.radio_button_checked_rounded,
               size: 18,
               color: Theme.of(context).colorScheme.primary,
-            )
-          : null,
+            ),
+          PopupMenuButton<String>(
+            tooltip: 'Member actions',
+            icon: const Icon(Icons.more_vert_rounded),
+            onSelected: (value) {
+              if (value == 'role') {
+                _showMemberRoleDialog(participant);
+              } else if (value == 'remove') {
+                _confirmRemoveMember(participant);
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'role', child: Text('Change role')),
+              PopupMenuItem(value: 'remove', child: Text('Remove member')),
+            ],
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _showCreateServerDialog() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create server'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Name'),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, controller.text),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name != null) {
+      await _controller.createServer(name);
+      if (mounted) Navigator.maybePop(context);
+    }
+  }
+
+  Future<void> _showAcceptInviteDialog() async {
+    final controller = TextEditingController();
+    final token = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Accept invite'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Invite token'),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, controller.text),
+            icon: const Icon(Icons.input_rounded),
+            label: const Text('Accept'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (token != null) {
+      await _controller.acceptServerInvite(token);
+    }
+  }
+
+  Future<void> _showCreateRoomDialog() async {
+    final controller = TextEditingController();
+    var type = 'chat';
+    final result = await showDialog<({String name, String type})>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Create room'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              const SizedBox(height: 12),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'chat',
+                    icon: Icon(Icons.tag_rounded),
+                    label: Text('Chat'),
+                  ),
+                  ButtonSegment(
+                    value: 'rtc',
+                    icon: Icon(Icons.graphic_eq_rounded),
+                    label: Text('Media'),
+                  ),
+                ],
+                selected: {type},
+                onSelectionChanged: (value) {
+                  setDialogState(() => type = value.first);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: () =>
+                  Navigator.pop(context, (name: controller.text, type: type)),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Create'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (result != null) {
+      await _controller.createRoom(result.name, type: result.type);
+    }
+  }
+
+  Future<void> _showCreateInviteDialog() async {
+    var role = 'member';
+    int? expiresInHours = 24;
+    final token = await showDialog<String?>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Create invite'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: role,
+                decoration: const InputDecoration(labelText: 'Role'),
+                items: const [
+                  DropdownMenuItem(value: 'member', child: Text('Member')),
+                  DropdownMenuItem(
+                    value: 'moderator',
+                    child: Text('Moderator'),
+                  ),
+                  DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                ],
+                onChanged: (value) {
+                  if (value != null) setDialogState(() => role = value);
+                },
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int?>(
+                initialValue: expiresInHours,
+                decoration: const InputDecoration(labelText: 'Expires'),
+                items: const [
+                  DropdownMenuItem(value: 1, child: Text('1 hour')),
+                  DropdownMenuItem(value: 24, child: Text('24 hours')),
+                  DropdownMenuItem(value: 168, child: Text('7 days')),
+                  DropdownMenuItem(value: null, child: Text('Never')),
+                ],
+                onChanged: (value) {
+                  setDialogState(() => expiresInHours = value);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                final inviteToken = await _controller.createServerInvite(
+                  role: role,
+                  expiresInHours: expiresInHours,
+                );
+                if (context.mounted) Navigator.pop(context, inviteToken);
+              },
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+              label: const Text('Create'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || token == null || token.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: token));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Invite copied: $token')));
+  }
+
+  Future<void> _showMemberRoleDialog(ServerParticipant participant) async {
+    var role = participant.member.role;
+    var canInvite = participant.member.canInvite;
+    var canManageRooms = participant.member.canManageRooms;
+    var canManageServer = participant.member.canManageServer;
+
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(participant.user.nickname),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: role,
+                  decoration: const InputDecoration(labelText: 'Role'),
+                  items: const [
+                    DropdownMenuItem(value: 'member', child: Text('Member')),
+                    DropdownMenuItem(
+                      value: 'moderator',
+                      child: Text('Moderator'),
+                    ),
+                    DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                    DropdownMenuItem(value: 'owner', child: Text('Owner')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => role = value);
+                  },
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Can invite'),
+                  value: canInvite,
+                  onChanged: (value) {
+                    setDialogState(() => canInvite = value);
+                  },
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Can manage rooms'),
+                  value: canManageRooms,
+                  onChanged: (value) {
+                    setDialogState(() => canManageRooms = value);
+                  },
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Can manage server'),
+                  value: canManageServer,
+                  onChanged: (value) {
+                    setDialogState(() => canManageServer = value);
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.save_rounded),
+              label: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (save == true) {
+      await _controller.updateMemberRole(
+        participant,
+        role: role,
+        canInvite: canInvite,
+        canManageRooms: canManageRooms,
+        canManageServer: canManageServer,
+      );
+    }
+  }
+
+  Future<void> _confirmRemoveMember(ServerParticipant participant) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remove ${participant.user.nickname}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.person_remove_rounded),
+            label: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _controller.removeServerMember(participant);
+    }
   }
 
   Widget _buildServerIcon(Server server, {double radius = 20}) {
@@ -1943,6 +2312,108 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
+    );
+  }
+
+  void _showCallDebugSheet(WebRtcSfuService sfu) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
+            child: StreamBuilder<int>(
+              stream: Stream.periodic(const Duration(seconds: 1), (i) => i),
+              initialData: 0,
+              builder: (context, _) {
+                return FutureBuilder<RtcDebugSnapshot>(
+                  future: sfu.collectDebugSnapshot(),
+                  builder: (context, snapshot) {
+                    final data = snapshot.data;
+                    return SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Call debug',
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting)
+                                const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            data == null
+                                ? 'Collecting...'
+                                : 'Updated ${data.capturedAt.hour.toString().padLeft(2, '0')}:${data.capturedAt.minute.toString().padLeft(2, '0')}:${data.capturedAt.second.toString().padLeft(2, '0')}',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                          const SizedBox(height: 14),
+                          if (data != null)
+                            ...data.values.entries.map(
+                              (entry) => _buildDebugRow(
+                                context,
+                                entry.key,
+                                entry.value,
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDebugRow(BuildContext context, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SelectableText(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -8,6 +8,7 @@ import 'package:gritos_client/core/realtime/webtransport_transport.dart';
 import 'package:gritos_client/core/realtime/websocket_transport.dart';
 import 'package:gritos_client/core/storage/storage_service.dart';
 import 'package:gritos_client/core/realtime/connection_service.dart';
+import 'package:gritos_client/core/config/api_endpoint.dart';
 import 'package:gritos_client/ui/screens/login_screen.dart';
 import 'package:gritos_client/ui/screens/home_screen.dart';
 import 'package:gritos_client/ui/screens/friends_screen.dart';
@@ -58,7 +59,9 @@ void main() async {
   await _initializeWebRtcAudio();
 
   final storageService = StorageService();
-  final apiClient = ApiClient();
+  final savedApiBaseUrl =
+      await storageService.getApiBaseUrl() ?? defaultApiBaseUrl;
+  final apiClient = ApiClient(baseUrl: savedApiBaseUrl);
 
   String initialRoute = '/login';
   String savedTheme = await storageService.getThemeMode() ?? 'light';
@@ -73,25 +76,39 @@ void main() async {
   try {
     final accessToken = await storageService.getAccessToken();
     final refreshToken = await storageService.getRefreshToken();
+    final authApiBaseUrl = await storageService.getAuthApiBaseUrl();
 
     if (accessToken != null && accessToken.isNotEmpty) {
-      final cookieUri = Uri.parse(apiClient.baseUrl);
-      List<Cookie> cookiesToLoad = [];
+      if (authApiBaseUrl != null && authApiBaseUrl != apiClient.baseUrl) {
+        await storageService.clearAllAuthData();
+        await apiClient.cookieJar.deleteAll();
+        initialRoute = '/login';
+      } else {
+        final cookieUri = Uri.parse(apiClient.baseUrl);
+        List<Cookie> cookiesToLoad = [];
 
-      final accessCookie = Cookie("access_token", accessToken);
-      accessCookie.domain = cookieUri.host;
-      accessCookie.path = "/";
-      cookiesToLoad.add(accessCookie);
+        final accessCookie = Cookie("access_token", accessToken);
+        accessCookie.domain = cookieUri.host;
+        accessCookie.path = "/";
+        cookiesToLoad.add(accessCookie);
 
-      if (refreshToken != null && refreshToken.isNotEmpty) {
-        final refreshCookie = Cookie("refresh_token", refreshToken);
-        refreshCookie.domain = cookieUri.host;
-        refreshCookie.path = "/";
-        cookiesToLoad.add(refreshCookie);
+        if (refreshToken != null && refreshToken.isNotEmpty) {
+          final refreshCookie = Cookie("refresh_token", refreshToken);
+          refreshCookie.domain = cookieUri.host;
+          refreshCookie.path = "/";
+          cookiesToLoad.add(refreshCookie);
+        }
+
+        await apiClient.cookieJar.saveFromResponse(cookieUri, cookiesToLoad);
+        initialRoute = '/home';
+        try {
+          await apiClient.getMe();
+        } on AuthIdentityNotFoundException {
+          await storageService.clearAllAuthData();
+          await apiClient.cookieJar.deleteAll();
+          initialRoute = '/login';
+        }
       }
-
-      await apiClient.cookieJar.saveFromResponse(cookieUri, cookiesToLoad);
-      initialRoute = '/home';
     }
   } catch (e) {
     debugPrint("Error during token reloading: $e");

@@ -95,6 +95,20 @@ class AppLogger {
     }
   }
 
+  static bool shouldLogRealtimePayload(Object? payload) {
+    try {
+      final decoded = payload is String ? jsonDecode(payload) : payload;
+      if (decoded is! Map) return true;
+      return !{
+        'sfu_active_speakers',
+        'sfu_ice_candidate',
+        'typing_indicator',
+      }.contains(decoded['type']);
+    } catch (_) {
+      return true;
+    }
+  }
+
   static String _formatData(Object data) {
     if (data is Map || data is Iterable) {
       return _truncate(jsonEncode(data));

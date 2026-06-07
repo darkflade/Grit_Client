@@ -9,14 +9,32 @@ import '../../../core/logging/app_logger.dart';
 import '../../../core/realtime/event_transport.dart';
 import 'ice_restart_controller.dart';
 
-typedef RtcConfigLoader = Future<Map<String, dynamic>> Function();
+// Unified Plan; Restart ICE; Perfect Negotiation; Trickle ICE; Transceivers; Polite Peer - Client; Server Authority
+
+typedef RtcConfigLoader =
+    Future<Map<String, dynamic>> Function({bool forceRelay, bool bypassCache});
 
 const _mediaDeadFallbackDelay = Duration(seconds: 6);
+const _rtcCleanupTimeout = Duration(seconds: 3);
+const _turnWarmupReuseDelay = Duration(seconds: 30);
+
+class RtcDebugSnapshot {
+  final DateTime capturedAt;
+  final Map<String, String> values;
+
+  RtcDebugSnapshot({required this.capturedAt, required this.values});
+}
 
 class WebRtcSfuService {
+  static Map<String, dynamic>? _cachedRtcConfiguration;
+  static DateTime? _cachedRtcConfigurationExpiresAt;
+  static Future<void>? _turnWarmupInFlight;
+
   final String roomId;
   final EventTransport transport;
   final RtcConfigLoader? loadRtcConfig;
+  final String? localUserId;
+  final bool useCommunicationAudio;
   final bool isPolite;
   String? sessionId;
   final AppLogger _log;
@@ -61,9 +79,16 @@ class WebRtcSfuService {
 
   final _remoteAudioTrackCount = ValueNotifier<int>(0);
   ValueListenable<int> get remoteAudioTrackCount => _remoteAudioTrackCount;
-  final Set<String> _seenRemoteAudioTrackIds = <String>{};
+  final Map<String, MediaStreamTrack> _remoteAudioTracksById = {};
   final Set<String> _seenRemoteTrackIds = <String>{};
+  final Set<String> _expectedRemoteTrackIds = <String>{};
+  bool _hasRtcParticipantSnapshot = false;
   Map<String, dynamic>? _rtcConfiguration;
+  RTCIceConnectionState _iceConnectionState =
+      RTCIceConnectionState.RTCIceConnectionStateNew;
+  RTCIceGatheringState _iceGatheringState =
+      RTCIceGatheringState.RTCIceGatheringStateNew;
+  RTCSignalingState _signalingState = RTCSignalingState.RTCSignalingStateStable;
   Timer? _inboundStatsTimer;
   DateTime? _connectedAt;
   DateTime? _noInboundSince;
@@ -92,6 +117,8 @@ class WebRtcSfuService {
     required this.roomId,
     required this.transport,
     this.loadRtcConfig,
+    this.localUserId,
+    this.useCommunicationAudio = false,
     this.isPolite = true,
   }) : _log = AppLogger('SFU.$roomId'),
        _iceRestartController = IceRestartController(
@@ -100,7 +127,7 @@ class WebRtcSfuService {
        );
 
   Future<void> initialize() async {
-    // Request permissions before anything else
+  
     Map<Permission, PermissionStatus> statuses = await [
       Permission.camera,
       Permission.microphone,
@@ -115,7 +142,6 @@ class WebRtcSfuService {
           'microphone': statuses[Permission.microphone].toString(),
         },
       );
-      // We proceed but getUserMedia will likely fail, which is handled below.
     }
 
     final configuration = await _loadRtcConfiguration();
@@ -127,10 +153,12 @@ class WebRtcSfuService {
     _log.info('peer connection created', data: configuration);
 
     _peerConnection!.onSignalingState = (RTCSignalingState state) {
+      _signalingState = state;
       _log.debug('signaling state changed', data: {'state': state.toString()});
     };
 
     _peerConnection!.onIceGatheringState = (RTCIceGatheringState state) {
+      _iceGatheringState = state;
       _log.debug(
         'ICE gathering state changed',
         data: {'state': state.toString()},
@@ -165,17 +193,6 @@ class WebRtcSfuService {
 
     _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
       final rawCandidate = candidate.candidate;
-      _log.debug(
-        'local ICE candidate',
-        data: {
-          'candidate': rawCandidate == null ? 'end' : 'present',
-          'candidate_length': rawCandidate?.length,
-          'candidate_type': _candidateToken(rawCandidate, 'typ'),
-          'protocol': _candidateProtocol(rawCandidate),
-          'sdp_mid': candidate.sdpMid,
-          'sdp_m_line_index': candidate.sdpMLineIndex,
-        },
-      );
       transport.sfuSendIceCandidate(
         roomId,
         rawCandidate == null ? null : candidate.toMap(),
@@ -183,6 +200,7 @@ class WebRtcSfuService {
     };
 
     _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
+      _iceConnectionState = state;
       _log.info(
         'ICE connection state changed',
         data: {'state': state.toString()},
@@ -232,15 +250,28 @@ class WebRtcSfuService {
       if (trackKind == 'audio') {
         event.track.enabled = true;
         if (trackId != null) {
-          _seenRemoteAudioTrackIds.add(trackId);
+          if (_expectedRemoteTrackIds.isNotEmpty &&
+              !_expectedRemoteTrackIds.contains(trackId)) {
+            _log.debug(
+              'ignoring stale remote audio track',
+              data: {'track_id': trackId},
+            );
+            await _stopTrackQuietly(event.track);
+            return;
+          }
+          final previousTrack = _remoteAudioTracksById[trackId];
+          if (previousTrack != null && previousTrack != event.track) {
+            await _stopTrackQuietly(previousTrack);
+          }
+          _remoteAudioTracksById[trackId] = event.track;
+          event.track.onEnded = () => _removeRemoteAudioTrack(trackId);
         }
-        _remoteAudioTrackCount.value = _seenRemoteAudioTrackIds.length;
+        _syncRemoteAudioTrackCount();
         try {
           await Helper.setVolume(1.0, event.track);
         } catch (e) {
           _log.warn('failed to set remote audio volume', data: e.toString());
         }
-        await _configureMobileAudio();
       }
       _onTrackController.add(event);
     };
@@ -248,9 +279,14 @@ class WebRtcSfuService {
     _peerConnection!.onRenegotiationNeeded = () async {
       await _negotiate("renegotiation-needed");
     };
+
+    await _configureMobileAudio();
   }
 
-  Future<Map<String, dynamic>> _loadRtcConfiguration() async {
+  Future<Map<String, dynamic>> _loadRtcConfiguration({
+    bool forceRelay = false,
+    bool bypassCache = false,
+  }) async {
     final fallback = <String, dynamic>{
       'iceServers': [
         {
@@ -264,39 +300,83 @@ class WebRtcSfuService {
       'sdpSemantics': 'unified-plan',
     };
 
+    final now = DateTime.now();
+    if (!bypassCache &&
+        _cachedRtcConfiguration != null &&
+        (_cachedRtcConfigurationExpiresAt == null ||
+            _cachedRtcConfigurationExpiresAt!.isAfter(now))) {
+      return _withIcePolicy(_cachedRtcConfiguration!, forceRelay);
+    }
+
     final loader = loadRtcConfig;
-    if (loader == null) return fallback;
+    if (loader == null) return _withIcePolicy(fallback, forceRelay);
 
     try {
-      final config = await loader();
+      final config = await loader(
+        forceRelay: forceRelay,
+        bypassCache: bypassCache,
+      );
       final servers = config['iceServers'];
-      if (servers is! List) return fallback;
-      final normalized = servers.where((server) => server['urls'] != null).map((
-        server,
-      ) {
-        final next = <String, dynamic>{'urls': server['urls']};
-        final username = server['username'];
-        final credential = server['credential'];
-        if (username is String && username.isNotEmpty) {
-          next['username'] = username;
-        }
-        if (credential is String && credential.isNotEmpty) {
-          next['credential'] = credential;
-        }
-        return next;
-      }).toList();
-      if (normalized.isEmpty) return fallback;
-      return {
+      if (servers is! List) return _withIcePolicy(fallback, forceRelay);
+      final normalized = servers
+          .whereType<Map>()
+          .where((server) {
+            final urls = server['urls'];
+            return urls is String || (urls is List && urls.isNotEmpty);
+          })
+          .map((server) {
+            final next = <String, dynamic>{'urls': server['urls']};
+            final username = server['username'];
+            final credential = server['credential'];
+            if (username is String && username.isNotEmpty) {
+              next['username'] = username;
+            }
+            if (credential is String && credential.isNotEmpty) {
+              next['credential'] = credential;
+            }
+            return next;
+          })
+          .toList();
+      if (normalized.isEmpty) return _withIcePolicy(fallback, forceRelay);
+      final normalizedConfig = {
         'iceServers': normalized,
         'iceTransportPolicy': config['iceTransportPolicy'] == 'relay'
             ? 'relay'
             : 'all',
         'sdpSemantics': 'unified-plan',
       };
+      _cachedRtcConfiguration = normalizedConfig;
+      _cachedRtcConfigurationExpiresAt = _resolveRtcConfigExpiry(config);
+      return _withIcePolicy(normalizedConfig, forceRelay);
     } catch (e) {
       _log.warn('failed to load RTC config, using fallback', data: '$e');
-      return fallback;
+      return _withIcePolicy(fallback, forceRelay);
     }
+  }
+
+  Map<String, dynamic> _withIcePolicy(
+    Map<String, dynamic> configuration,
+    bool forceRelay,
+  ) {
+    final next = Map<String, dynamic>.from(configuration);
+    if (forceRelay) {
+      next['iceTransportPolicy'] = 'relay';
+    }
+    return next;
+  }
+
+  DateTime _resolveRtcConfigExpiry(Map<String, dynamic> config) {
+    final expiresAt = config['expiresAt'] ?? config['expires_at'];
+    if (expiresAt is String) {
+      final parsed = DateTime.tryParse(expiresAt);
+      if (parsed != null) {
+        return parsed.subtract(const Duration(minutes: 1));
+      }
+    }
+
+    final ttlSeconds = config['ttlSeconds'] ?? config['ttl_seconds'];
+    final ttl = ttlSeconds is num ? ttlSeconds.toInt() : 300;
+    return DateTime.now().add(Duration(seconds: ttl < 60 ? 60 : ttl));
   }
 
   Future<void> _warmupTurn(Map<String, dynamic> configuration) async {
@@ -309,34 +389,42 @@ class WebRtcSfuService {
       return list.any((url) => url is String && url.startsWith('turn'));
     });
     if (!hasTurn) return;
+    if (_turnWarmupInFlight != null) return _turnWarmupInFlight;
 
-    RTCPeerConnection? warmupPc;
-    final completed = Completer<void>();
-    Timer? timeout;
-    try {
-      final warmupConfig = Map<String, dynamic>.from(configuration);
-      warmupConfig['iceTransportPolicy'] = 'relay';
-      warmupPc = await createPeerConnection(warmupConfig);
-      warmupPc.onIceCandidate = (candidate) {
-        final raw = candidate.candidate ?? '';
-        if (!completed.isCompleted &&
-            (raw.isEmpty || raw.contains(' typ relay '))) {
-          completed.complete();
-        }
-      };
-      await warmupPc.createDataChannel('turn-warmup', RTCDataChannelInit());
-      final offer = await warmupPc.createOffer();
-      await warmupPc.setLocalDescription(offer);
-      timeout = Timer(const Duration(milliseconds: 2500), () {
-        if (!completed.isCompleted) completed.complete();
-      });
-      await completed.future;
-    } catch (e) {
-      _log.warn('TURN warmup failed', data: '$e');
-    } finally {
-      timeout?.cancel();
-      await warmupPc?.close();
-    }
+    _turnWarmupInFlight = () async {
+      RTCPeerConnection? warmupPc;
+      final completed = Completer<void>();
+      Timer? timeout;
+      try {
+        final warmupConfig = Map<String, dynamic>.from(configuration);
+        warmupConfig['iceTransportPolicy'] = 'relay';
+        warmupPc = await createPeerConnection(warmupConfig);
+        warmupPc.onIceCandidate = (candidate) {
+          final raw = candidate.candidate ?? '';
+          if (!completed.isCompleted &&
+              (raw.isEmpty || raw.contains(' typ relay '))) {
+            completed.complete();
+          }
+        };
+        await warmupPc.createDataChannel('turn-warmup', RTCDataChannelInit());
+        final offer = await warmupPc.createOffer();
+        await warmupPc.setLocalDescription(offer);
+        timeout = Timer(const Duration(milliseconds: 2500), () {
+          if (!completed.isCompleted) completed.complete();
+        });
+        await completed.future;
+      } catch (e) {
+        _log.warn('TURN warmup failed', data: '$e');
+      } finally {
+        timeout?.cancel();
+        await _closePeerConnectionQuietly(warmupPc);
+        Timer(_turnWarmupReuseDelay, () {
+          _turnWarmupInFlight = null;
+        });
+      }
+    }();
+
+    return _turnWarmupInFlight;
   }
 
   void _startInboundStatsWatch() {
@@ -408,8 +496,10 @@ class WebRtcSfuService {
     _relayFallbackUsed = true;
     _noInboundSince = null;
     try {
-      final relayConfig = Map<String, dynamic>.from(config);
-      relayConfig['iceTransportPolicy'] = 'relay';
+      final relayConfig = await _loadRtcConfiguration(
+        forceRelay: true,
+        bypassCache: true,
+      );
       _rtcConfiguration = relayConfig;
       await peerConnection.setConfiguration(relayConfig);
       unawaited(_warmupTurn(relayConfig));
@@ -510,19 +600,6 @@ class WebRtcSfuService {
       'video_tracks': stream.getVideoTracks().length,
       'constraints': constraints,
     };
-  }
-
-  String? _candidateProtocol(String? candidate) {
-    final parts = candidate?.split(RegExp(r'\s+')) ?? const <String>[];
-    if (parts.length < 3) return null;
-    return parts[2].toLowerCase();
-  }
-
-  String? _candidateToken(String? candidate, String marker) {
-    final parts = candidate?.split(RegExp(r'\s+')) ?? const <String>[];
-    final index = parts.indexOf(marker);
-    if (index == -1 || index + 1 >= parts.length) return null;
-    return parts[index + 1];
   }
 
   Map<String, dynamic> _audioConstraints(String? deviceId) {
@@ -694,6 +771,7 @@ class WebRtcSfuService {
           AndroidAudioConfiguration.communication,
         );
         await Helper.setSpeakerphoneOn(true);
+        
         return;
       }
       if (Platform.isIOS) {
@@ -781,18 +859,6 @@ class WebRtcSfuService {
         return;
       }
 
-      _log.debug(
-        'handling remote ICE candidate',
-        data: {
-          'sdp_mid': candidateData['sdpMid'],
-          'sdp_m_line_index': candidateData['sdpMLineIndex'],
-          'candidate_length': candidateData['candidate']?.toString().length,
-          'candidate_type': _candidateToken(
-            candidateData['candidate']?.toString(),
-            'typ',
-          ),
-        },
-      );
       final candidate = RTCIceCandidate(
         candidateData['candidate'],
         candidateData['sdpMid'],
@@ -847,19 +913,21 @@ class WebRtcSfuService {
     final participantsList = data['participants'];
     if (participantsList is! List) return;
 
-    final newParticipants = Map<String, Map<String, dynamic>>.from(
-      _participants.value,
-    );
+    final previousParticipants = _participants.value;
+    final newParticipants = <String, Map<String, dynamic>>{};
+    final expectedRemoteTrackIds = <String>{};
     for (var p in participantsList) {
       if (p is! Map) continue;
-      final userId = p['user_id'];
+      final userId = p['user_id']?.toString();
       if (userId == null) continue;
 
       final userState = Map<String, dynamic>.from(
-        newParticipants[userId] ?? {},
+        previousParticipants[userId] ?? {},
       );
       userState['online'] = p['online'] == true;
       userState['connection_state'] = p['connection_state'];
+      userState['track_count'] = p['track_count'];
+      userState['track_ids'] = p['track_ids'];
 
       // If the participant has tracks, we can assume they are not fully muted
       // unless sfu_media_state says otherwise later.
@@ -869,8 +937,20 @@ class WebRtcSfuService {
       }
 
       newParticipants[userId] = userState;
+      if (localUserId != null && userId == localUserId) continue;
+      final trackIds = p['track_ids'];
+      if (trackIds is List) {
+        expectedRemoteTrackIds.addAll(
+          trackIds.map((id) => id.toString()).where((id) => id.isNotEmpty),
+        );
+      }
     }
     _participants.value = newParticipants;
+    _hasRtcParticipantSnapshot = true;
+    _expectedRemoteTrackIds
+      ..clear()
+      ..addAll(expectedRemoteTrackIds);
+    _pruneRemoteTracks();
   }
 
   void handleRemoteMediaState(String userId, Map<String, dynamic> state) {
@@ -907,12 +987,55 @@ class WebRtcSfuService {
     final newParticipants = Map<String, Map<String, dynamic>>.from(
       _participants.value,
     );
+    final trackIds = newParticipants[userId]?['track_ids'];
     newParticipants.remove(userId);
     _participants.value = newParticipants;
+    if (trackIds is List) {
+      for (final trackId in trackIds) {
+        _expectedRemoteTrackIds.remove(trackId.toString());
+      }
+    }
 
     final newSpeakers = Set<String>.from(_activeSpeakers.value);
     newSpeakers.remove(userId);
     _activeSpeakers.value = newSpeakers;
+    _pruneRemoteTracks();
+  }
+
+  void _removeRemoteAudioTrack(String trackId) {
+    if (_disposed) return;
+    _remoteAudioTracksById.remove(trackId);
+    _syncRemoteAudioTrackCount();
+  }
+
+  void _syncRemoteAudioTrackCount() {
+    if (_disposed) return;
+    final expectedCount = !_hasRtcParticipantSnapshot
+        ? _remoteAudioTracksById.length
+        : _remoteAudioTracksById.keys
+              .where(_expectedRemoteTrackIds.contains)
+              .length;
+    _remoteAudioTrackCount.value = expectedCount;
+  }
+
+  void _pruneRemoteTracks() {
+    if (!_hasRtcParticipantSnapshot) {
+      _syncRemoteAudioTrackCount();
+      return;
+    }
+    final staleIds = _remoteAudioTracksById.keys
+        .where((trackId) => !_expectedRemoteTrackIds.contains(trackId))
+        .toList();
+    for (final trackId in staleIds) {
+      final track = _remoteAudioTracksById.remove(trackId);
+      if (track != null) {
+        unawaited(_stopTrackQuietly(track));
+      }
+    }
+    _seenRemoteTrackIds.removeWhere(
+      (trackId) => !_expectedRemoteTrackIds.contains(trackId),
+    );
+    _syncRemoteAudioTrackCount();
   }
 
   Future<void> addTrack(MediaStreamTrack track, MediaStream stream) async {
@@ -924,8 +1047,159 @@ class WebRtcSfuService {
   }
 
   void restartIce([String reason = 'manual']) {
+    if (_disposed) return;
     _log.warn('requesting ICE restart', data: {'reason': reason});
     transport.sfuSendIceRestart(roomId);
+  }
+
+  Future<RtcDebugSnapshot> collectDebugSnapshot() async {
+    final values = <String, String>{
+      'room': roomId,
+      'session': sessionId ?? '-',
+      'connection': _connectionStateValue.value.name,
+      'ice': _iceConnectionState.name,
+      'gathering': _iceGatheringState.name,
+      'signaling': _signalingState.name,
+      'ice policy': _rtcConfiguration?['iceTransportPolicy']?.toString() ?? '-',
+      'relay fallback': _relayFallbackUsed ? 'used' : 'not used',
+      'remote audio': _remoteAudioTrackCount.value.toString(),
+      'expected tracks': _expectedRemoteTrackIds.length.toString(),
+      'tracked remote': _remoteAudioTracksById.length.toString(),
+      'participants': _participants.value.length.toString(),
+      'local tracks': (_localStream?.getTracks().length ?? 0).toString(),
+    };
+
+    final peerConnection = _peerConnection;
+    if (peerConnection == null || _disposed) {
+      values['peer connection'] = 'closed';
+      return RtcDebugSnapshot(capturedAt: DateTime.now(), values: values);
+    }
+
+    try {
+      values['senders'] = (await peerConnection.getSenders()).length.toString();
+      values['receivers'] = (await peerConnection.getReceivers()).length
+          .toString();
+    } catch (e) {
+      values['sender/receiver read'] = e.toString();
+    }
+
+    try {
+      final reports = await peerConnection.getStats().timeout(
+        const Duration(seconds: 2),
+      );
+      final aggregate = _aggregateRtcStats(reports);
+      values.addAll(aggregate);
+    } catch (e) {
+      values['stats error'] = e.toString();
+    }
+
+    return RtcDebugSnapshot(capturedAt: DateTime.now(), values: values);
+  }
+
+  Map<String, String> _aggregateRtcStats(Iterable<StatsReport> reports) {
+    var inboundAudioBytes = 0;
+    var inboundAudioPackets = 0;
+    var inboundAudioLost = 0;
+    double? maxJitterSeconds;
+    var outboundBytes = 0;
+    var outboundPackets = 0;
+    double? rttSeconds;
+    double? availableOutgoingBitrate;
+    String? localCandidate;
+    String? remoteCandidate;
+    String? selectedPairState;
+
+    final reportsById = {for (final report in reports) report.id: report};
+
+    for (final report in reports) {
+      final values = Map<String, dynamic>.from(report.values);
+      if (report.type == 'inbound-rtp' &&
+          values['kind']?.toString() == 'audio') {
+        inboundAudioBytes += _intStat(values['bytesReceived']);
+        inboundAudioPackets += _intStat(values['packetsReceived']);
+        inboundAudioLost += _intStat(values['packetsLost']);
+        final jitter = _doubleStat(values['jitter']);
+        if (jitter != null &&
+            (maxJitterSeconds == null || jitter > maxJitterSeconds)) {
+          maxJitterSeconds = jitter;
+        }
+      }
+      if (report.type == 'outbound-rtp') {
+        outboundBytes += _intStat(values['bytesSent']);
+        outboundPackets += _intStat(values['packetsSent']);
+      }
+      if (report.type == 'candidate-pair' && _isSelectedCandidatePair(values)) {
+        selectedPairState = values['state']?.toString();
+        rttSeconds =
+            _doubleStat(values['currentRoundTripTime']) ??
+            _doubleStat(values['totalRoundTripTime']);
+        availableOutgoingBitrate = _doubleStat(
+          values['availableOutgoingBitrate'],
+        );
+        localCandidate = _candidateSummary(
+          _reportValues(reportsById[values['localCandidateId']?.toString()]),
+        );
+        remoteCandidate = _candidateSummary(
+          _reportValues(reportsById[values['remoteCandidateId']?.toString()]),
+        );
+      }
+    }
+
+    final packetLossPercent = inboundAudioPackets + inboundAudioLost == 0
+        ? 0.0
+        : (inboundAudioLost / (inboundAudioPackets + inboundAudioLost)) * 100;
+
+    return {
+      'rtt': rttSeconds == null
+          ? '-'
+          : '${(rttSeconds * 1000).toStringAsFixed(0)} ms',
+      'jitter': maxJitterSeconds == null
+          ? '-'
+          : '${(maxJitterSeconds * 1000).toStringAsFixed(1)} ms',
+      'packet loss': '${packetLossPercent.toStringAsFixed(1)}%',
+      'in audio packets': inboundAudioPackets.toString(),
+      'in audio lost': inboundAudioLost.toString(),
+      'in audio bytes': inboundAudioBytes.toString(),
+      'out packets': outboundPackets.toString(),
+      'out bytes': outboundBytes.toString(),
+      'out bitrate': availableOutgoingBitrate == null
+          ? '-'
+          : '${(availableOutgoingBitrate / 1000).toStringAsFixed(0)} kbps',
+      'candidate pair': selectedPairState ?? '-',
+      'local candidate': localCandidate ?? '-',
+      'remote candidate': remoteCandidate ?? '-',
+    };
+  }
+
+  Map<String, dynamic>? _reportValues(StatsReport? report) {
+    if (report == null) return null;
+    return Map<String, dynamic>.from(report.values);
+  }
+
+  bool _isSelectedCandidatePair(Map<String, dynamic> values) {
+    return values['selected'] == true ||
+        values['nominated'] == true ||
+        values['state']?.toString() == 'succeeded';
+  }
+
+  double? _doubleStat(Object? value) {
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  String? _candidateSummary(Map<String, dynamic>? values) {
+    if (values == null) return null;
+    final type =
+        values['candidateType'] ??
+        values['candidate_type'] ??
+        values['type'] ??
+        values['relayProtocol'];
+    final protocol = values['protocol'] ?? values['transport'];
+    final address = values['address'] ?? values['ip'];
+    final port = values['port'];
+    return [?type, ?protocol, ?address, ?port].join(' ');
   }
 
   /// Sends the current media state (e.g., mute status) to the server.
@@ -962,17 +1236,21 @@ class WebRtcSfuService {
   }
 
   Future<void> dispose() async {
+    if (_disposed) return;
     _disposed = true;
     _iceRestartController.dispose();
     _stopInboundStatsWatch();
-    for (var track in _localStream?.getTracks() ?? []) {
-      track.stop();
-    }
-    await _localStream?.dispose();
+    final peerConnection = _peerConnection;
+    final localStream = _localStream;
+    _peerConnection = null;
     _localStream = null;
 
-    await _peerConnection?.close();
-    _peerConnection = null;
+    await _detachLocalSenders(peerConnection);
+    await _disposeLocalStream(localStream);
+    await _disposeRemoteTracks();
+    await _closePeerConnectionQuietly(peerConnection);
+    await _resetMobileAudioRoute();
+
     await _onTrackController.close();
     await _connectionStateController.close();
     await _localStreamController.close();
@@ -987,5 +1265,89 @@ class WebRtcSfuService {
     _selectedVideoInputId.dispose();
     _videoQuality.dispose();
     _stereoAudio.dispose();
+  }
+
+  Future<void> _detachLocalSenders(RTCPeerConnection? peerConnection) async {
+    if (peerConnection == null) return;
+    try {
+      final senders = await peerConnection.getSenders().timeout(
+        _rtcCleanupTimeout,
+      );
+      for (final sender in senders) {
+        try {
+          await sender.replaceTrack(null).timeout(_rtcCleanupTimeout);
+        } catch (e) {
+          _log.warn('failed to detach sender track', data: e.toString());
+        }
+      }
+    } catch (e) {
+      _log.warn('failed to list senders during cleanup', data: e.toString());
+    } finally {
+      _sendersByKind.clear();
+    }
+  }
+
+  Future<void> _disposeLocalStream(MediaStream? stream) async {
+    if (stream == null) return;
+    for (final track in List<MediaStreamTrack>.from(stream.getTracks())) {
+      await _stopTrackQuietly(track);
+    }
+    try {
+      await stream.dispose().timeout(_rtcCleanupTimeout);
+    } catch (e) {
+      _log.warn('failed to dispose local stream', data: e.toString());
+    }
+    if (!_localStreamController.isClosed) {
+      _localStreamController.add(null);
+    }
+  }
+
+  Future<void> _disposeRemoteTracks() async {
+    final tracks = List<MediaStreamTrack>.from(_remoteAudioTracksById.values);
+    _remoteAudioTracksById.clear();
+    _seenRemoteTrackIds.clear();
+    _remoteAudioTrackCount.value = 0;
+    for (final track in tracks) {
+      await _stopTrackQuietly(track);
+    }
+  }
+
+  Future<void> _stopTrackQuietly(MediaStreamTrack track) async {
+    try {
+      track.onEnded = null;
+      track.onMute = null;
+      track.onUnMute = null;
+      track.enabled = false;
+    } catch (_) {}
+    try {
+      await track.stop().timeout(_rtcCleanupTimeout);
+    } catch (e) {
+      _log.warn(
+        'failed to stop media track',
+        data: {'track_id': track.id, 'kind': track.kind, 'error': e.toString()},
+      );
+    }
+  }
+
+  Future<void> _closePeerConnectionQuietly(
+    RTCPeerConnection? peerConnection,
+  ) async {
+    if (peerConnection == null) return;
+    try {
+      await peerConnection.close().timeout(_rtcCleanupTimeout);
+    } catch (e) {
+      _log.warn('failed to close peer connection', data: e.toString());
+    }
+  }
+
+  Future<void> _resetMobileAudioRoute() async {
+    if (kIsWeb) return;
+    try {
+      if (Platform.isAndroid || Platform.isIOS) {
+        await Helper.setSpeakerphoneOn(false).timeout(_rtcCleanupTimeout);
+      }
+    } catch (e) {
+      _log.warn('failed to reset mobile audio route', data: e.toString());
+    }
   }
 }

@@ -4,6 +4,7 @@ import '../controllers/settings_controller.dart';
 import '../../data/api/rest.dart';
 import '../../main.dart';
 import '../../core/realtime/connection_service.dart';
+import '../../core/config/api_endpoint.dart';
 
 class SettingsScreen extends StatefulWidget {
   final ApiClient apiClient;
@@ -23,9 +24,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late SettingsController _controller;
   final _nicknameController = TextEditingController();
   final _bioController = TextEditingController();
+  final _customApiController = TextEditingController();
   String _selectedStatus = 'online';
   String _selectedTheme = 'light';
   String _selectedTransport = 'websocket';
+  String _selectedApiBaseUrl = defaultApiBaseUrl;
 
   @override
   void initState() {
@@ -38,12 +41,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _controller.initialize().then((_) {
       final user = _controller.currentUser.value;
       _selectedTransport = _controller.transportMode.value;
+      _selectedApiBaseUrl = _controller.apiBaseUrl.value;
       if (user != null) {
         _nicknameController.text = user.nickname;
         _bioController.text = user.bio ?? "";
         _selectedStatus = user.status;
-        if (mounted) setState(() {});
       }
+      if (mounted) setState(() {});
     });
   }
 
@@ -51,8 +55,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _nicknameController.dispose();
     _bioController.dispose();
+    _customApiController.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  List<String> get _apiEndpointOptions {
+    final values = <String>{
+      ...defaultApiEndpoints.map((endpoint) => endpoint.baseUrl),
+      ..._controller.customApiBaseUrls.value,
+    }.toList();
+    if (!values.contains(_selectedApiBaseUrl)) {
+      values.add(_selectedApiBaseUrl);
+    }
+    return values;
+  }
+
+  Future<void> _addCustomApiEndpoint() async {
+    try {
+      final normalized = await _controller.addCustomApiBaseUrl(
+        _customApiController.text,
+      );
+      if (!mounted) return;
+      setState(() {
+        _selectedApiBaseUrl = normalized;
+        _customApiController.clear();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Endpoint added: $normalized'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _applyApiEndpoint() async {
+    try {
+      await _controller.updateApiBaseUrl(_selectedApiBaseUrl);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Backend changed. Sign in again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _save() async {
@@ -148,6 +213,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
           _buildSectionHeader('Network'),
           _buildCard([
+            _buildApiEndpointDropdown(),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _customApiController,
+                      decoration: const InputDecoration(
+                        labelText: 'Custom API domain',
+                        hintText: 'custom.api.diogen.space',
+                        filled: false,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      textCapitalization: TextCapitalization.none,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  TextButton(
+                    onPressed: _addCustomApiEndpoint,
+                    child: const Text('Add'),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.dns_rounded),
+              title: const Text('Backend API'),
+              subtitle: Text(
+                'Current: ${_controller.apiBaseUrl.value}\nChanging backend clears local auth.',
+              ),
+              trailing: ElevatedButton(
+                onPressed: _selectedApiBaseUrl == _controller.apiBaseUrl.value
+                    ? null
+                    : _applyApiEndpoint,
+                child: const Text('Apply'),
+              ),
+            ),
+            const Divider(height: 1),
             SwitchListTile(
               secondary: const Icon(Icons.swap_horiz),
               title: const Text('WebTransport'),
@@ -245,6 +353,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
             )
             .toList(),
         onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _buildApiEndpointDropdown() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: DropdownButtonFormField<String>(
+        initialValue: _selectedApiBaseUrl,
+        decoration: const InputDecoration(
+          labelText: 'Backend endpoint',
+          filled: false,
+          contentPadding: EdgeInsets.zero,
+        ),
+        items: _apiEndpointOptions
+            .map(
+              (endpoint) =>
+                  DropdownMenuItem(value: endpoint, child: Text(endpoint)),
+            )
+            .toList(),
+        onChanged: (value) {
+          if (value == null) return;
+          setState(() => _selectedApiBaseUrl = value);
+        },
       ),
     );
   }

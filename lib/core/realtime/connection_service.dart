@@ -91,7 +91,10 @@ class ConnectionService {
     eventTransport.sendCommand(type, data, nonce: nonce);
   }
 
-  Future<Map<String, dynamic>> getRtcConfig() async {
+  Future<Map<String, dynamic>> getRtcConfig({
+    bool forceRelay = false,
+    bool bypassCache = false,
+  }) async {
     if (!_isConnected) {
       return apiClient.getRtcConfig();
     }
@@ -248,7 +251,11 @@ class ConnectionService {
   }
 
   // SFU Methods
-  Future<WebRtcSfuService> joinSfuRoom(String roomId) async {
+  Future<WebRtcSfuService> joinSfuRoom(
+    String roomId, {
+    String? localUserId,
+    bool useCommunicationAudio = false,
+  }) async {
     if (_sfuSessions.containsKey(roomId)) {
       return _sfuSessions[roomId]!;
     }
@@ -257,6 +264,8 @@ class ConnectionService {
       roomId: roomId,
       transport: eventTransport,
       loadRtcConfig: getRtcConfig,
+      localUserId: localUserId,
+      useCommunicationAudio: useCommunicationAudio,
     );
     _sfuSessions[roomId] = sfu;
     await sfu.initialize();
@@ -264,11 +273,11 @@ class ConnectionService {
     return sfu;
   }
 
-  void leaveSfuRoom(String roomId, String sessionId) {
+  Future<void> leaveSfuRoom(String roomId, String sessionId) async {
     final sfu = _sfuSessions.remove(roomId);
     final sid = sessionId.isNotEmpty ? sessionId : (sfu?.sessionId ?? "");
-    sfu?.dispose();
     eventTransport.sfuLeave(roomId, sid);
+    await sfu?.dispose();
   }
 
   void _handleSfuSignaling(dynamic message) {
@@ -307,10 +316,12 @@ class ConnectionService {
         return;
       }
 
-      _log.debug(
-        'SFU <= $type',
-        data: {'room_id': roomId, 'payload': _summarizeSfuData(data)},
-      );
+      if (type != 'sfu_active_speakers' && type != 'sfu_ice_candidate') {
+        _log.debug(
+          'SFU <= $type',
+          data: {'room_id': roomId, 'payload': _summarizeSfuData(data)},
+        );
+      }
 
       final sfu = _sfuSessions[roomId];
       if (sfu == null) {
@@ -521,6 +532,12 @@ class ConnectionService {
   void dispose() {
     _manualDisconnect = true;
     _cancelReconnect();
+    final sessions = Map<String, WebRtcSfuService>.from(_sfuSessions);
+    _sfuSessions.clear();
+    for (final entry in sessions.entries) {
+      eventTransport.sfuLeave(entry.key, entry.value.sessionId ?? "");
+      unawaited(entry.value.dispose());
+    }
     _messageController.close();
     disconnect();
   }

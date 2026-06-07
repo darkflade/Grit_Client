@@ -14,21 +14,36 @@ import '../models/direct_room.dart';
 import '../models/attachment.dart';
 import '../models/chat_message.dart';
 import '../models/message_page.dart';
+import '../models/invitation.dart';
+import '../../core/config/api_endpoint.dart';
+
+class AuthIdentityNotFoundException implements Exception {
+  final String message;
+
+  const AuthIdentityNotFoundException([
+    this.message = 'Authenticated user not found on this server.',
+  ]);
+
+  @override
+  String toString() => message;
+}
 
 class ApiClient {
   final Dio dio;
-  final String baseUrl = "https://api.diogen.space";
+  String baseUrl;
   late final CookieJar cookieJar;
 
   final Map<String, Uint8List> _fileCache = {};
   final Map<String, Map<String, dynamic>> _metadataCache = {};
 
-  ApiClient() : dio = Dio() {
+  ApiClient({String? baseUrl})
+    : dio = Dio(),
+      baseUrl = normalizeApiBaseUrl(baseUrl ?? defaultApiBaseUrl) {
     cookieJar = CookieJar();
     dio.interceptors.add(CookieManager(cookieJar));
     dio.interceptors.add(_RetryInterceptor(dio));
 
-    dio.options.baseUrl = baseUrl;
+    dio.options.baseUrl = this.baseUrl;
     dio.options.connectTimeout = const Duration(seconds: 8);
     dio.options.sendTimeout = const Duration(seconds: 10);
     dio.options.receiveTimeout = const Duration(seconds: 12);
@@ -36,6 +51,14 @@ class ApiClient {
       "Accept": "application/json",
       "Content-Type": "application/json",
     };
+  }
+
+  Future<void> updateBaseUrl(String nextBaseUrl) async {
+    baseUrl = normalizeApiBaseUrl(nextBaseUrl);
+    dio.options.baseUrl = baseUrl;
+    _fileCache.clear();
+    _metadataCache.clear();
+    await cookieJar.deleteAll();
   }
 
   // Auth
@@ -101,6 +124,8 @@ class ApiClient {
               data["ice_transport_policy"] ??
               data["iceTransportPolicy"] ??
               "all",
+          if (data["expires_at"] != null) "expiresAt": data["expires_at"],
+          if (data["ttl_seconds"] != null) "ttlSeconds": data["ttl_seconds"],
         };
       }
     }
@@ -118,7 +143,14 @@ class ApiClient {
       }
       return null;
     } catch (e) {
-      debugPrint("Error in getMe: $e");
+      if (e is DioException) {
+        if (e.response?.statusCode == 404) {
+          throw const AuthIdentityNotFoundException();
+        }
+        debugPrint("Error in getMe (${e.requestOptions.uri}): $e");
+      } else {
+        debugPrint("Error in getMe: $e");
+      }
       return null;
     }
   }
@@ -158,6 +190,61 @@ class ApiClient {
     return [];
   }
 
+  Future<Server?> getServerInfo(String serverId) async {
+    final list = await getServers();
+    for (final server in list) {
+      if (server.id == serverId) return server;
+    }
+    return null;
+  }
+
+  Future<Server?> createServer(String name, {String? iconUrl}) async {
+    try {
+      final data = <String, dynamic>{"name": name};
+      if (iconUrl != null && iconUrl.isNotEmpty) {
+        data["icon_url"] = iconUrl;
+      }
+      final res = await dio.post("/api/servers/", data: data);
+      if (res.data is Map<String, dynamic>) {
+        return Server.fromJson(res.data as Map<String, dynamic>);
+      }
+    } catch (e) {
+      debugPrint("Error in createServer: $e");
+      rethrow;
+    }
+    return null;
+  }
+
+  Future<Server?> updateServerIcon(String serverId, String attachmentId) async {
+    try {
+      final res = await dio.patch(
+        "/api/servers/$serverId/icon",
+        data: {"attachment_id": attachmentId},
+      );
+      if (res.data is Map<String, dynamic>) {
+        return Server.fromJson(res.data as Map<String, dynamic>);
+      }
+    } catch (e) {
+      debugPrint("Error in updateServerIcon: $e");
+      rethrow;
+    }
+    return null;
+  }
+
+  Future<List<User>> getServerBlockedUsers(String serverId) async {
+    try {
+      final res = await dio.get("/api/servers/$serverId/blocked");
+      if (res.data is List) {
+        return (res.data as List)
+            .map((item) => User.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint("Error in getServerBlockedUsers: $e");
+    }
+    return [];
+  }
+
   Future<List<Room>> getRooms(String serverId) async {
     try {
       final res = await dio.get("/api/servers/$serverId/rooms/");
@@ -174,6 +261,26 @@ class ApiClient {
     return [];
   }
 
+  Future<Room?> createRoom(
+    String serverId,
+    String name, {
+    String type = "chat",
+  }) async {
+    try {
+      final res = await dio.post(
+        "/api/servers/$serverId/rooms/",
+        data: {"name": name, "type": type},
+      );
+      if (res.data is Map<String, dynamic>) {
+        return Room.fromJson(res.data as Map<String, dynamic>);
+      }
+    } catch (e) {
+      debugPrint("Error in createRoom: $e");
+      rethrow;
+    }
+    return null;
+  }
+
   Future<ServerParticipantsResponse?> getServerParticipants(
     String serverId,
   ) async {
@@ -186,6 +293,120 @@ class ApiClient {
       debugPrint("Error in getServerParticipants: $e");
     }
     return null;
+  }
+
+  Future<RtcRoomParticipantsResponse?> getRtcRoomParticipants(
+    String serverId,
+    String roomId,
+  ) async {
+    try {
+      final res = await dio.get(
+        "/api/servers/$serverId/rooms/$roomId/rtc/participants",
+      );
+      if (res.statusCode == 200 && res.data is Map<String, dynamic>) {
+        return RtcRoomParticipantsResponse.fromJson(res.data);
+      }
+    } catch (e) {
+      debugPrint("Error in getRtcRoomParticipants: $e");
+    }
+    return null;
+  }
+
+  Future<List<Invitation>> getServerInvitations(String serverId) async {
+    try {
+      final res = await dio.get("/api/servers/$serverId/invitations/");
+      if (res.data is List) {
+        return (res.data as List)
+            .map(
+              (item) =>
+                  Invitation.fromJson(Map<String, dynamic>.from(item as Map)),
+            )
+            .toList();
+      }
+    } catch (e) {
+      debugPrint("Error in getServerInvitations: $e");
+    }
+    return [];
+  }
+
+  Future<Invitation?> createServerInvitation(
+    String serverId, {
+    String role = "member",
+    String? email,
+    String? userId,
+    int? expiresInHours,
+  }) async {
+    try {
+      final data = <String, dynamic>{"role": role};
+      if (email != null && email.isNotEmpty) data["email"] = email;
+      if (userId != null && userId.isNotEmpty) data["user_id"] = userId;
+      if (expiresInHours != null) {
+        data["expires_in_hours"] = expiresInHours;
+      }
+      final res = await dio.post(
+        "/api/servers/$serverId/invitations/",
+        data: data,
+      );
+      if (res.data is Map<String, dynamic>) {
+        return Invitation.fromJson(res.data as Map<String, dynamic>);
+      }
+    } catch (e) {
+      debugPrint("Error in createServerInvitation: $e");
+      rethrow;
+    }
+    return null;
+  }
+
+  Future<void> deleteServerInvitation(
+    String serverId,
+    String invitationId,
+  ) async {
+    try {
+      await dio.delete("/api/servers/$serverId/invitations/$invitationId");
+    } catch (e) {
+      debugPrint("Error in deleteServerInvitation: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> acceptServerInvitation(String token) async {
+    try {
+      await dio.post("/api/servers/invitations/accept", data: {"token": token});
+    } catch (e) {
+      debugPrint("Error in acceptServerInvitation: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> removeServerMember(String serverId, String userId) async {
+    try {
+      await dio.delete("/api/servers/$serverId/members/$userId");
+    } catch (e) {
+      debugPrint("Error in removeServerMember: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> updateServerMemberRole(
+    String serverId,
+    String userId, {
+    required String role,
+    bool? canInvite,
+    bool? canManageRooms,
+    bool? canManageServer,
+  }) async {
+    try {
+      final data = <String, dynamic>{"role": role};
+      if (canInvite != null) data["can_invite"] = canInvite;
+      if (canManageRooms != null) data["can_manage_rooms"] = canManageRooms;
+      if (canManageServer != null) {
+        data["can_manage_server"] = canManageServer;
+      }
+      await dio.patch("/api/servers/$serverId/members/$userId", data: data);
+    } catch (e) {
+      debugPrint("Error in updateServerMemberRole: $e");
+      rethrow;
+    }
   }
 
   Future<MessagePage?> getRoomMessages(

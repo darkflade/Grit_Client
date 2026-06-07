@@ -7,6 +7,7 @@ import '../../core/realtime/websocket_transport.dart';
 import '../../data/models/user.dart';
 import '../../core/realtime/connection_service.dart';
 import '../../core/storage/storage_service.dart';
+import '../../core/config/api_endpoint.dart';
 import '../../main.dart';
 
 class SettingsController {
@@ -18,6 +19,8 @@ class SettingsController {
   final errorMessage = ValueNotifier<String?>(null);
   final currentUser = ValueNotifier<User?>(null);
   final transportMode = ValueNotifier<String>('websocket');
+  final apiBaseUrl = ValueNotifier<String>(defaultApiBaseUrl);
+  final customApiBaseUrls = ValueNotifier<List<String>>([]);
 
   String? _userId;
   StreamSubscription? _wsSubscription;
@@ -35,12 +38,27 @@ class SettingsController {
     try {
       transportMode.value =
           await storageService.getEventTransportMode() ?? 'websocket';
+      apiBaseUrl.value =
+          await storageService.getApiBaseUrl() ?? defaultApiBaseUrl;
+      final normalizedCustomUrls = <String>{};
+      for (final rawUrl in await storageService.getCustomApiBaseUrls()) {
+        try {
+          normalizedCustomUrls.add(normalizeApiBaseUrl(rawUrl));
+        } catch (_) {}
+      }
+      customApiBaseUrls.value = normalizedCustomUrls.toList();
       try {
         final user = await apiClient.getMe();
         if (user != null) {
           _userId = user.id;
           currentUser.value = user;
         }
+      } on AuthIdentityNotFoundException {
+        await storageService.clearAllAuthData();
+        await apiClient.cookieJar.deleteAll();
+        connectionService.disconnect();
+        errorMessage.value =
+            "Session belongs to another server or deleted user. Please sign in again.";
       } catch (e) {
         debugPrint("Settings profile load failed: $e");
       }
@@ -121,11 +139,38 @@ class SettingsController {
     );
   }
 
+  Future<String> addCustomApiBaseUrl(String input) async {
+    final normalized = normalizeApiBaseUrl(input);
+    final defaultUrls = defaultApiEndpoints.map((e) => e.baseUrl).toSet();
+    final custom = customApiBaseUrls.value.toSet();
+    if (!defaultUrls.contains(normalized)) {
+      custom.add(normalized);
+      final next = custom.toList();
+      customApiBaseUrls.value = next;
+      await storageService.saveCustomApiBaseUrls(next);
+    }
+    return normalized;
+  }
+
+  Future<void> updateApiBaseUrl(String input) async {
+    final normalized = normalizeApiBaseUrl(input);
+    await storageService.saveApiBaseUrl(normalized);
+    await storageService.clearAllAuthData();
+    await apiClient.updateBaseUrl(normalized);
+    apiBaseUrl.value = normalized;
+
+    connectionService.disconnect();
+    final mode = await storageService.getEventTransportMode() ?? 'websocket';
+    await connectionService.setTransport(createEventTransport(mode, apiClient));
+  }
+
   void dispose() {
     isLoading.dispose();
     errorMessage.dispose();
     currentUser.dispose();
     transportMode.dispose();
+    apiBaseUrl.dispose();
+    customApiBaseUrls.dispose();
     _wsSubscription?.cancel();
   }
 }
