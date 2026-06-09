@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:path/path.dart' as p;
+import 'package:permission_handler/permission_handler.dart';
 import '../controllers/home_controller.dart';
 import '../../features/calls/application/webrtc_sfu_service.dart';
 import '../../data/api/rest.dart';
@@ -33,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late HomeController _controller;
   final _messageTextController = TextEditingController();
   final _scrollController = ScrollController();
+  final StorageService _storageService = StorageService();
 
   String _webrtcLabel(RTCPeerConnectionState state) {
     switch (state) {
@@ -48,6 +52,74 @@ class _HomeScreenState extends State<HomeScreen> {
         return 'Closed';
       default:
         return 'Preparing';
+    }
+  }
+
+  Future<void> _downloadAttachment(String url, String fileName) async {
+    try {
+      if (Platform.isAndroid) {
+        if (await Permission.manageExternalStorage.isRestricted) {
+           // On some devices this might be restricted, fallback to basic
+           await Permission.storage.request();
+        } else {
+           var status = await Permission.manageExternalStorage.status;
+           if (!status.isGranted) {
+             status = await Permission.manageExternalStorage.request();
+           }
+           if (!status.isGranted) {
+             await Permission.storage.request();
+           }
+        }
+      }
+
+      String? downloadDir = await _storageService.getDownloadPath();
+      if (downloadDir == null) {
+        if (Platform.isAndroid) {
+          downloadDir = '/storage/emulated/0/Download';
+        } else {
+          throw Exception("Download folder not set in Settings");
+        }
+      }
+
+      final dir = Directory(downloadDir);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      final savePath = p.join(downloadDir, fileName);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Downloading $fileName..."),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      await widget.apiClient.downloadFile(
+        url,
+        savePath,
+        onReceiveProgress: (count, total) {
+          // Could show progress here if we wanted
+        },
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Downloaded to $savePath"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Download failed: $e"),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     }
   }
 
@@ -2037,14 +2109,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     tooltip: "Download",
                     visualDensity: VisualDensity.compact,
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("Downloading $originalName..."),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
+                    onPressed: () => _downloadAttachment(fullUrl, originalName),
                   ),
                 ],
               ),

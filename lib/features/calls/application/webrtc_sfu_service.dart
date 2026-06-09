@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/logging/app_logger.dart';
 import '../../../core/realtime/event_transport.dart';
+import '../../../core/storage/storage_service.dart';
 import 'android_native_webrtc_sfu_bridge.dart';
 import 'ice_restart_controller.dart';
 
@@ -40,6 +41,7 @@ class WebRtcSfuService {
   String? sessionId;
   final AppLogger _log;
   final IceRestartController _iceRestartController;
+  final StorageService _storageService = StorageService();
 
   AndroidNativeWebRtcSfuBridge? _nativeAndroid;
   RTCPeerConnection? _peerConnection;
@@ -145,11 +147,15 @@ class WebRtcSfuService {
       );
     }
 
-    final configuration = await _loadRtcConfiguration();
+    final forceRelaySetting = await _storageService.getForceRelay();
+    final configuration = await _loadRtcConfiguration(
+      forceRelay: forceRelaySetting,
+    );
     _rtcConfiguration = configuration;
     unawaited(_warmupTurn(configuration));
 
-    if (_shouldUseNativeAndroidWebRtc) {
+    final implementation = await _storageService.getWebRtcImplementation();
+    if (implementation == 'native' && _isNativeSupported) {
       await _initializeNativeAndroid(configuration);
       return;
     }
@@ -289,7 +295,7 @@ class WebRtcSfuService {
     await _configureMobileAudio();
   }
 
-  bool get _shouldUseNativeAndroidWebRtc => !kIsWeb && Platform.isAndroid;
+  bool get _isNativeSupported => !kIsWeb && Platform.isAndroid;
 
   Future<void> _initializeNativeAndroid(
     Map<String, dynamic> configuration,

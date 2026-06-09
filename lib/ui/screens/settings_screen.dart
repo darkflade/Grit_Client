@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import '../controllers/settings_controller.dart';
 import '../../data/api/rest.dart';
 import '../../main.dart';
@@ -29,6 +30,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _selectedTheme = 'light';
   String _selectedTransport = 'websocket';
   String _selectedApiBaseUrl = defaultApiBaseUrl;
+  String _selectedWebRtc = 'native';
+  bool _forceRelay = false;
+  String? _downloadPath;
 
   @override
   void initState() {
@@ -42,6 +46,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final user = _controller.currentUser.value;
       _selectedTransport = _controller.transportMode.value;
       _selectedApiBaseUrl = _controller.apiBaseUrl.value;
+      _selectedWebRtc = _controller.webRtcImplementation.value;
+      _forceRelay = _controller.forceRelay.value;
+      _downloadPath = _controller.downloadPath.value;
+
       if (user != null) {
         _nicknameController.text = user.nickname;
         _bioController.text = user.bio ?? "";
@@ -117,6 +125,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+    }
+  }
+
+  Future<void> _pickDownloadPath() async {
+    String? result = await FilePicker.platform.getDirectoryPath();
+    if (result != null) {
+      setState(() => _downloadPath = result);
+      await _controller.updateDownloadPath(result);
     }
   }
 
@@ -270,6 +286,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 setState(() => _selectedTransport = mode);
                 unawaited(_controller.updateTransportMode(mode));
               },
+            ),
+          ]),
+          const SizedBox(height: 24),
+          _buildSectionHeader('Media & Calls'),
+          _buildCard([
+            _buildDropdown(
+              'WebRTC Implementation',
+              _selectedWebRtc,
+              ['native', 'flutter'],
+              (val) {
+                if (val == null) return;
+                setState(() => _selectedWebRtc = val);
+                unawaited(_controller.updateWebRtcImplementation(val));
+              },
+            ),
+            const Divider(height: 1),
+            SwitchListTile(
+              secondary: const Icon(Icons.security),
+              title: const Text('Force Relay (TURN)'),
+              subtitle: const Text('Prefer relay servers for calls'),
+              value: _forceRelay,
+              onChanged: (enabled) {
+                setState(() => _forceRelay = enabled);
+                unawaited(_controller.updateForceRelay(enabled));
+              },
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.folder_open),
+              title: const Text('Download Folder'),
+              subtitle: Text(_downloadPath ?? 'Not set (using default)'),
+              trailing: IconButton(
+                icon: const Icon(Icons.edit),
+                onPressed: _pickDownloadPath,
+              ),
             ),
           ]),
           const SizedBox(height: 32),

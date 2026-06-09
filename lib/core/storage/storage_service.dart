@@ -16,6 +16,9 @@ class StorageService {
   static const String _eventTransportModeKey = 'event_transport_mode';
   static const String _apiBaseUrlKey = 'api_base_url';
   static const String _customApiBaseUrlsKey = 'custom_api_base_urls';
+  static const String _webRtcImplementationKey = 'webrtc_implementation';
+  static const String _forceRelayKey = 'force_relay';
+  static const String _downloadPathKey = 'download_path';
 
   // Access Token
   Future<void> saveAccessToken(String token) async {
@@ -145,6 +148,33 @@ class StorageService {
     } catch (_) {
       return [];
     }
+  }
+
+  // WebRTC
+  Future<void> saveWebRtcImplementation(String value) async {
+    await _storage.write(key: _webRtcImplementationKey, value: value);
+  }
+
+  Future<String?> getWebRtcImplementation() async {
+    return await _storage.read(key: _webRtcImplementationKey);
+  }
+
+  Future<void> saveForceRelay(bool value) async {
+    await _storage.write(key: _forceRelayKey, value: value.toString());
+  }
+
+  Future<bool> getForceRelay() async {
+    final val = await _storage.read(key: _forceRelayKey);
+    return val == 'true';
+  }
+
+  // Downloads
+  Future<void> saveDownloadPath(String path) async {
+    await _storage.write(key: _downloadPathKey, value: path);
+  }
+
+  Future<String?> getDownloadPath() async {
+    return await _storage.read(key: _downloadPathKey);
   }
 
   // Clear all

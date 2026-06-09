@@ -21,6 +21,9 @@ class SettingsController {
   final transportMode = ValueNotifier<String>('websocket');
   final apiBaseUrl = ValueNotifier<String>(defaultApiBaseUrl);
   final customApiBaseUrls = ValueNotifier<List<String>>([]);
+  final webRtcImplementation = ValueNotifier<String>('native');
+  final forceRelay = ValueNotifier<bool>(false);
+  final downloadPath = ValueNotifier<String?>(null);
 
   String? _userId;
   StreamSubscription? _wsSubscription;
@@ -47,6 +50,11 @@ class SettingsController {
         } catch (_) {}
       }
       customApiBaseUrls.value = normalizedCustomUrls.toList();
+      webRtcImplementation.value =
+          await storageService.getWebRtcImplementation() ?? 'native';
+      forceRelay.value = await storageService.getForceRelay();
+      downloadPath.value = await storageService.getDownloadPath();
+
       try {
         final user = await apiClient.getMe();
         if (user != null) {
@@ -164,6 +172,22 @@ class SettingsController {
     await connectionService.setTransport(createEventTransport(mode, apiClient));
   }
 
+  Future<void> updateWebRtcImplementation(String value) async {
+    await storageService.saveWebRtcImplementation(value);
+    webRtcImplementation.value = value;
+  }
+
+  Future<void> updateForceRelay(bool value) async {
+    await storageService.saveForceRelay(value);
+    forceRelay.value = value;
+  }
+
+  Future<void> updateDownloadPath(String? path) async {
+    if (path == null) return;
+    await storageService.saveDownloadPath(path);
+    downloadPath.value = path;
+  }
+
   void dispose() {
     isLoading.dispose();
     errorMessage.dispose();
@@ -171,6 +195,9 @@ class SettingsController {
     transportMode.dispose();
     apiBaseUrl.dispose();
     customApiBaseUrls.dispose();
+    webRtcImplementation.dispose();
+    forceRelay.dispose();
+    downloadPath.dispose();
     _wsSubscription?.cancel();
   }
 }

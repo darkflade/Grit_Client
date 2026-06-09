@@ -17,6 +17,7 @@ dependencies:
   web_socket_channel: ^3.0.3
   flutter_secure_storage: ^10.3.1 # Or the latest version
   file_picker: ^8.1.7
+  path: ^1.9.0
 
   cupertino_icons: ^1.0.8
   flutter_webrtc: ^1.4.1

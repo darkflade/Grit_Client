@@ -769,6 +769,29 @@ class ApiClient {
     }
     return null;
   }
+
+  Future<void> downloadFile(
+    String url,
+    String savePath, {
+    void Function(int count, int total)? onReceiveProgress,
+  }) async {
+    String fullUrl = url;
+    if (!url.startsWith("http")) {
+      final cleanUrl = url.startsWith('/') ? url : '/$url';
+      fullUrl = "$baseUrl$cleanUrl";
+    }
+
+    try {
+      await dio.download(
+        fullUrl,
+        savePath,
+        onReceiveProgress: onReceiveProgress,
+      );
+    } catch (e) {
+      debugPrint("Error downloading file from $fullUrl to $savePath: $e");
+      rethrow;
+    }
+  }
 }
 
 class _RetryInterceptor extends QueuedInterceptor {
