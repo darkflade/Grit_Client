@@ -6,6 +6,14 @@ import '../../core/storage/storage_service.dart';
 import '../../core/realtime/connection_service.dart';
 import '../../data/models/user.dart';
 import '../../data/models/friend_request.dart';
+import '../theme/app_theme_extension.dart';
+import '../theme/app_spacing.dart';
+import '../widgets/common/app_avatar.dart';
+import '../widgets/common/app_card.dart';
+import '../widgets/common/app_empty_state.dart';
+import '../widgets/common/app_badge.dart';
+import '../widgets/common/app_text_field.dart';
+import '../widgets/common/section_header.dart';
 
 class FriendsScreen extends StatefulWidget {
   final ApiClient apiClient;
@@ -54,57 +62,44 @@ class _FriendsScreenState extends State<FriendsScreen> {
     super.dispose();
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'online':
-        return Colors.green;
-      case 'idle':
-        return Colors.orange;
-      case 'dnd':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Friends'), centerTitle: false),
-      body: Column(
-        children: [
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Column(
+            children: [
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.sm,
+            ),
+            child: AppTextField(
               controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search people...',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                suffixIcon: ValueListenableBuilder<bool>(
-                  valueListenable: _controller.isSearching,
-                  builder: (context, loading, _) => loading
-                      ? const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        )
-                      : IconButton(
-                          icon: const Icon(Icons.clear, size: 20),
-                          onPressed: () {
-                            _searchController.clear();
-                            _controller.searchUsers("");
-                          },
+              hint: 'Search people...',
+              prefixIcon: Icons.search_rounded,
+              suffixIcon: ValueListenableBuilder<bool>(
+                valueListenable: _controller.isSearching,
+                builder: (context, loading, _) => loading
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                ),
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.clear_rounded, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          _controller.searchUsers("");
+                        },
+                      ),
               ),
               onChanged: (val) => _controller.searchUsers(val),
             ),
@@ -122,7 +117,11 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   valueListenable: _controller.errorMessage,
                   builder: (context, error, _) {
                     if (error != null) {
-                      return Center(child: Text('Error: $error'));
+                      return AppEmptyState(
+                        icon: Icons.error_outline_rounded,
+                        title: 'Something went wrong',
+                        description: error,
+                      );
                     }
                     return child!;
                   },
@@ -130,96 +129,127 @@ class _FriendsScreenState extends State<FriendsScreen> {
               },
               child: RefreshIndicator(
                 onRefresh: () => _controller.initialize(),
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  children: <Widget>[
-                    _buildSearchResults(),
-                    _buildFriendRequestsList(),
-                    _buildFriendsList(),
-                  ],
+                child: AnimatedBuilder(
+                  animation: _searchController,
+                  builder: (context, _) {
+                    final query = _searchController.text.trim();
+                    return ListView(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+                      children: query.isNotEmpty
+                          ? [_buildSearchSection()]
+                          : [
+                              _buildFriendRequestsSection(),
+                              _buildFriendsSection(),
+                            ],
+                    );
+                  },
                 ),
               ),
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title, {int? count}) {
+  /// A section: an uppercase [SectionHeader] (with optional count badge) and a
+  /// body — either a card with user tiles or a standalone empty state.
+  Widget _buildSection({
+    required String title,
+    int? count,
+    required Widget body,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(
+          label: title,
+          trailing: (count != null && count > 0)
+              ? AppBadge(count: count, variant: AppBadgeVariant.accent)
+              : null,
+        ),
+        body,
+      ],
+    );
+  }
+
+  /// Wraps a list of user tiles in a single rounded card.
+  Widget _buildTilesCard(List<Widget> tiles) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Row(
-        children: [
-          Text(
-            title.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(
-                context,
-              ).textTheme.bodySmall?.color?.withValues(alpha: 0.6),
-              letterSpacing: 1.1,
-            ),
-          ),
-          if (count != null && count > 0) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                count.toString(),
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ],
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.lg,
+      ),
+      child: AppCard(
+        padding: EdgeInsets.zero,
+        clipContent: true,
+        child: Column(children: tiles),
       ),
     );
   }
 
-  Widget _buildSearchResults() {
+  Widget _buildSearchSection() {
     return ValueListenableBuilder<List<User>>(
       valueListenable: _controller.searchResults,
       builder: (context, results, _) {
-        if (results.isEmpty) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionHeader('Search Results'),
-            ...results.map(
-              (user) => _buildUserTile(user, trailing: _buildAddButton(user)),
+        if (results.isNotEmpty) {
+          return _buildSection(
+            title: 'Search Results',
+            body: _buildTilesCard(
+              results
+                  .map(
+                    (user) =>
+                        _buildUserTile(user, trailing: _buildAddButton(user)),
+                  )
+                  .toList(),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Divider(),
-            ),
-          ],
+          );
+        }
+        return ValueListenableBuilder<bool>(
+          valueListenable: _controller.isSearching,
+          builder: (context, searching, _) {
+            if (searching) {
+              return const Padding(
+                padding: EdgeInsets.all(AppSpacing.xxl),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return const AppEmptyState(
+              icon: Icons.person_search_rounded,
+              title: 'No people found',
+              description: 'Try a different name or username.',
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildFriendRequestsList() {
+  Widget _buildFriendRequestsSection() {
     return ValueListenableBuilder<List<FriendRequest>>(
       valueListenable: _controller.friendRequests,
       builder: (context, requests, _) {
-        if (requests.isEmpty) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionHeader('Pending Requests', count: requests.length),
-            ...requests.map((request) {
-              final otherUser = request.initiatorId == _controller.currentUserId
+        if (requests.isEmpty) {
+          return _buildSection(
+            title: 'Pending Requests',
+            body: const AppEmptyState(
+              icon: Icons.mark_email_read_outlined,
+              title: 'No pending requests',
+              description: 'Incoming friend requests will appear here.',
+            ),
+          );
+        }
+        return _buildSection(
+          title: 'Pending Requests',
+          count: requests.length,
+          body: _buildTilesCard(
+            requests.map((request) {
+              final otherUser =
+                  request.initiatorId == _controller.currentUserId
                   ? request.friend
                   : request.initiator;
               final isIncoming =
@@ -231,40 +261,38 @@ class _FriendsScreenState extends State<FriendsScreen> {
                     : 'Waiting for response',
                 trailing: isIncoming ? _buildRequestActions(request) : null,
               );
-            }),
-            const SizedBox(height: 8),
-          ],
+            }).toList(),
+          ),
         );
       },
     );
   }
 
-  Widget _buildFriendsList() {
+  Widget _buildFriendsSection() {
     return ValueListenableBuilder<List<User>>(
       valueListenable: _controller.friends,
       builder: (context, friends, _) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionHeader('Friends', count: friends.length),
-            if (friends.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(
-                  child: Text(
-                    'No friends yet',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-              )
-            else
-              ...friends.map(
-                (friend) => _buildUserTile(
-                  friend,
-                  trailing: _buildFriendActions(friend),
-                ),
-              ),
-          ],
+        if (friends.isEmpty) {
+          return _buildSection(
+            title: 'Friends',
+            body: const AppEmptyState(
+              icon: Icons.people_outline_rounded,
+              title: 'No friends yet',
+              description: 'Search for people above to add friends.',
+            ),
+          );
+        }
+        return _buildSection(
+          title: 'Friends',
+          count: friends.length,
+          body: _buildTilesCard(
+            friends
+                .map(
+                  (friend) =>
+                      _buildUserTile(friend, trailing: _buildFriendActions(friend)),
+                )
+                .toList(),
+          ),
         );
       },
     );
@@ -273,41 +301,19 @@ class _FriendsScreenState extends State<FriendsScreen> {
   Widget _buildUserTile(User user, {String? subtitle, Widget? trailing}) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: Stack(
-        children: [
-          if (user.avatarUrl != null)
-            FutureBuilder<Uint8List?>(
+      leading: user.avatarUrl != null
+          ? FutureBuilder<Uint8List?>(
               future: widget.apiClient.getFileBytes(user.avatarUrl!),
               builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data != null) {
-                  return CircleAvatar(
-                    radius: 24,
-                    backgroundImage: MemoryImage(snapshot.data!),
-                  );
-                }
-                return _buildDefaultAvatar(user);
+                final hasImage = snapshot.hasData && snapshot.data != null;
+                return AppAvatar(
+                  name: user.nickname,
+                  image: hasImage ? MemoryImage(snapshot.data!) : null,
+                  status: user.status,
+                );
               },
             )
-          else
-            _buildDefaultAvatar(user),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Container(
-              width: 14,
-              height: 14,
-              decoration: BoxDecoration(
-                color: _getStatusColor(user.status),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  width: 2,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+          : AppAvatar(name: user.nickname, status: user.status),
       title: Text(
         user.nickname,
         style: const TextStyle(fontWeight: FontWeight.w600),
@@ -322,22 +328,6 @@ class _FriendsScreenState extends State<FriendsScreen> {
         ),
       ),
       trailing: trailing,
-    );
-  }
-
-  Widget _buildDefaultAvatar(User user) {
-    return CircleAvatar(
-      radius: 24,
-      backgroundColor: Theme.of(
-        context,
-      ).colorScheme.primary.withValues(alpha: 0.1),
-      child: Text(
-        user.nickname[0].toUpperCase(),
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
     );
   }
 
@@ -361,11 +351,11 @@ class _FriendsScreenState extends State<FriendsScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
-          icon: const Icon(Icons.check_circle, color: Colors.green),
+          icon: Icon(Icons.check_circle, color: context.appColors.success),
           onPressed: () => _controller.acceptFriendRequest(request.initiatorId),
         ),
         IconButton(
-          icon: const Icon(Icons.cancel, color: Colors.red),
+          icon: Icon(Icons.cancel, color: Theme.of(context).colorScheme.error),
           onPressed: () => _controller.rejectFriendRequest(request.initiatorId),
         ),
       ],
@@ -419,10 +409,13 @@ class _FriendsScreenState extends State<FriendsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.person_remove, color: Colors.red),
-              title: const Text(
+              leading: Icon(
+                Icons.person_remove,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
                 'Remove Friend',
-                style: TextStyle(color: Colors.red),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
               onTap: () {
                 Navigator.pop(context);

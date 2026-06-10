@@ -6,6 +6,12 @@ import '../../data/api/rest.dart';
 import '../../main.dart';
 import '../../core/realtime/connection_service.dart';
 import '../../core/config/api_endpoint.dart';
+import '../theme/app_spacing.dart';
+import '../widgets/common/app_button.dart';
+import '../widgets/common/app_card.dart';
+import '../widgets/common/app_text_field.dart';
+import '../widgets/common/section_header.dart';
+import '../widgets/common/status_dot.dart';
 
 class SettingsScreen extends StatefulWidget {
   final ApiClient apiClient;
@@ -37,7 +43,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedTheme = themeNotifier.value;
+    // Only Light / Dark are exposed in the UI; a legacy stored 'amoled' value
+    // is normalized to 'dark' so saved settings keep working.
+    _selectedTheme = normalizeThemeMode(themeNotifier.value);
     _controller = SettingsController(
       widget.apiClient,
       widget.connectionService,
@@ -167,17 +175,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildContent() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+          // ---- Connection ----------------------------------------------------
+          _buildSectionHeader('Connection'),
           _buildConnectionStatus(),
           ValueListenableBuilder<String?>(
             valueListenable: _controller.errorMessage,
             builder: (context, error, _) {
               if (error == null) return const SizedBox.shrink();
               return Padding(
-                padding: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.only(top: AppSpacing.md),
                 child: Text(
                   error,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -187,7 +201,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               );
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.xxl),
+
+          // ---- Profile -------------------------------------------------------
           _buildSectionHeader('Profile'),
           if (_controller.currentUser.value == null)
             Padding(
@@ -213,46 +229,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
           ]),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.md),
+          AppButton(
+            label: 'Save Profile Changes',
+            fullWidth: true,
+            loading: _controller.isLoading.value,
+            onPressed: _save,
+          ),
+          const SizedBox(height: AppSpacing.xxl),
+
+          // ---- Appearance ----------------------------------------------------
           _buildSectionHeader('Appearance'),
-          _buildCard([
-            _buildDropdown(
-              'Theme',
-              _selectedTheme,
-              ['light', 'dark', 'amoled'],
-              (val) {
-                setState(() => _selectedTheme = val!);
-                unawaited(_controller.updateTheme(val!));
-              },
-            ),
-          ]),
-          const SizedBox(height: 24),
+          _buildCard([_buildThemeSelector()]),
+          const SizedBox(height: AppSpacing.xxl),
+
+          // ---- Network -------------------------------------------------------
           _buildSectionHeader('Network'),
           _buildCard([
             _buildApiEndpointDropdown(),
             const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.sm,
+                AppSpacing.lg,
+                AppSpacing.sm,
+              ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
-                    child: TextField(
+                    child: AppTextField(
                       controller: _customApiController,
-                      decoration: const InputDecoration(
-                        labelText: 'Custom API domain',
-                        hintText: 'custom.api.diogen.space',
-                        filled: false,
-                        contentPadding: EdgeInsets.zero,
-                      ),
+                      label: 'Custom API domain',
+                      hint: 'custom.api.diogen.space',
+                      filled: false,
                       keyboardType: TextInputType.url,
-                      autocorrect: false,
-                      textCapitalization: TextCapitalization.none,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  TextButton(
+                  const SizedBox(width: AppSpacing.md),
+                  AppButton(
+                    label: 'Add',
+                    variant: AppButtonVariant.secondary,
                     onPressed: _addCustomApiEndpoint,
-                    child: const Text('Add'),
                   ),
                 ],
               ),
@@ -264,11 +283,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(
                 'Current: ${_controller.apiBaseUrl.value}\nChanging backend clears local auth.',
               ),
-              trailing: ElevatedButton(
+              trailing: AppButton(
+                label: 'Apply',
                 onPressed: _selectedApiBaseUrl == _controller.apiBaseUrl.value
                     ? null
                     : _applyApiEndpoint,
-                child: const Text('Apply'),
               ),
             ),
             const Divider(height: 1),
@@ -288,7 +307,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
           ]),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.xxl),
+
+          // ---- Media & Calls -------------------------------------------------
           _buildSectionHeader('Media & Calls'),
           _buildCard([
             _buildDropdown(
@@ -323,43 +344,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ]),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _controller.isLoading.value ? null : _save,
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.onPrimary,
-              ),
-              child: const Text('Save Profile Changes'),
+          const SizedBox(height: AppSpacing.xxxl),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+  }
+
+  /// Light / Dark switch. Only these two modes are exposed; a legacy stored
+  /// 'amoled' value is normalized to 'dark' before reaching this control.
+  Widget _buildThemeSelector() {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Theme',
+              style: Theme.of(context).textTheme.bodyLarge,
             ),
           ),
-          const SizedBox(height: 40),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment<String>(
+                value: 'light',
+                label: Text('Light'),
+                icon: Icon(Icons.light_mode_rounded),
+              ),
+              ButtonSegment<String>(
+                value: 'dark',
+                label: Text('Dark'),
+                icon: Icon(Icons.dark_mode_rounded),
+              ),
+            ],
+            selected: {_selectedTheme},
+            showSelectedIcon: false,
+            onSelectionChanged: (selection) {
+              final mode = selection.first;
+              setState(() => _selectedTheme = mode);
+              unawaited(_controller.updateTheme(mode));
+            },
+          ),
         ],
       ),
     );
   }
 
   Widget _buildSectionHeader(String title) {
-    return Padding(
+    return SectionHeader(
+      label: title,
       padding: const EdgeInsets.only(left: 8, bottom: 8),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.primary,
-          letterSpacing: 1.2,
-        ),
-      ),
     );
   }
 
   Widget _buildCard(List<Widget> children) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      clipBehavior: Clip.antiAlias,
+    return AppCard(
+      padding: EdgeInsets.zero,
+      clipContent: true,
       child: Column(children: children),
     );
   }
@@ -370,15 +413,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     int maxLines = 1,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: TextField(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: AppTextField(
         controller: controller,
+        label: label,
         maxLines: maxLines,
-        decoration: InputDecoration(
-          labelText: label,
-          filled: false,
-          contentPadding: EdgeInsets.zero,
-        ),
+        filled: false,
       ),
     );
   }
@@ -433,60 +476,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildConnectionStatus() {
-    return Card(
-      elevation: 0,
-      color: Theme.of(
-        context,
-      ).colorScheme.primaryContainer.withValues(alpha: 0.3),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.bolt, color: Colors.white),
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      backgroundColor: scheme.primaryContainer.withValues(alpha: 0.3),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: scheme.primary,
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Real-time Connection',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+            child: Icon(Icons.bolt_rounded, color: scheme.onPrimary),
+          ),
+          const SizedBox(width: AppSpacing.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Real-time Connection',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_controller.currentTransport} • ${_controller.connectionState}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
                   ),
-                  Text(
-                    '${_controller.currentTransport} • ${_controller.connectionState}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).textTheme.bodySmall?.color,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            _buildStatusDot(_controller.connectionState),
-          ],
-        ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          _buildStatusDot(_controller.connectionState),
+        ],
       ),
     );
   }
 
   Widget _buildStatusDot(String state) {
-    Color color = Colors.grey;
-    if (state == "Connected") color = Colors.green;
-    if (state.contains("Connecting")) color = Colors.orange;
-    if (state == "Error") color = Colors.red;
-
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
+    // Map the realtime connection state onto the shared presence palette:
+    // Connected -> online (success), Connecting -> idle (warning),
+    // Error -> dnd (error), otherwise -> offline (muted).
+    final String status;
+    if (state == "Connected") {
+      status = 'online';
+    } else if (state.contains("Connecting")) {
+      status = 'idle';
+    } else if (state == "Error") {
+      status = 'dnd';
+    } else {
+      status = 'offline';
+    }
+    return StatusDot(status: status);
   }
 }

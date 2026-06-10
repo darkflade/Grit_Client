@@ -132,7 +132,7 @@ class SettingsController {
 
   Future<void> updateTheme(String mode) async {
     await storageService.saveThemeMode(mode);
-    themeNotifier.value = mode;
+    themeNotifier.value = normalizeThemeMode(mode);
   }
 
   Future<void> updateTransportMode(String mode) async {

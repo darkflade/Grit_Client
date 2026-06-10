@@ -13,39 +13,26 @@ import 'package:gritos_client/ui/screens/login_screen.dart';
 import 'package:gritos_client/ui/screens/home_screen.dart';
 import 'package:gritos_client/ui/screens/friends_screen.dart';
 import 'package:gritos_client/ui/screens/settings_screen.dart';
+import 'package:gritos_client/ui/theme/app_theme.dart';
 
-MaterialColor createMaterialColor(Color color) {
-  final strengths = <double>[.05];
-  final swatch = <int, Color>{};
-  final int r = (color.r * 255.0).round().clamp(0, 255).toInt();
-  final int g = (color.g * 255.0).round().clamp(0, 255).toInt();
-  final int b = (color.b * 255.0).round().clamp(0, 255).toInt();
-
-  for (int i = 1; i < 10; i++) {
-    strengths.add(0.1 * i);
-  }
-  for (var strength in strengths) {
-    final double ds = 0.5 - strength;
-    swatch[(strength * 1000).round()] = Color.fromRGBO(
-      r + ((ds < 0 ? r : (255 - r)) * ds).round(),
-      g + ((ds < 0 ? g : (255 - g)) * ds).round(),
-      b + ((ds < 0 ? b : (255 - b)) * ds).round(),
-      1,
-    );
-  }
-  return MaterialColor(color.toARGB32(), swatch);
-}
-
-class CustomColors {
-  static final MaterialColor primary = createMaterialColor(
-    const Color(0xFF136F63),
-  );
-  static final MaterialColor secondary = createMaterialColor(
-    const Color(0xFFFFB703),
-  );
-}
-
+/// Holds the currently selected theme mode name ('light' or 'dark').
+///
+/// Legacy 'amoled' values persisted by older builds are mapped to 'dark' on
+/// read so saved settings keep working after the design-system migration.
 final themeNotifier = ValueNotifier<String>('light');
+
+/// Normalizes a stored theme name to a value the current theme system knows.
+/// 'amoled' is temporarily mapped onto 'dark' to avoid breaking saved prefs.
+String normalizeThemeMode(String? mode) {
+  switch (mode) {
+    case 'dark':
+    case 'amoled':
+      return 'dark';
+    case 'light':
+    default:
+      return 'light';
+  }
+}
 
 EventTransport createEventTransport(String mode, ApiClient apiClient) {
   if (mode == 'webtransport') {
@@ -64,7 +51,7 @@ void main() async {
   final apiClient = ApiClient(baseUrl: savedApiBaseUrl);
 
   String initialRoute = '/login';
-  String savedTheme = await storageService.getThemeMode() ?? 'light';
+  String savedTheme = normalizeThemeMode(await storageService.getThemeMode());
   String savedTransportMode =
       await storageService.getEventTransportMode() ?? 'websocket';
   themeNotifier.value = savedTheme;
@@ -157,7 +144,11 @@ class MyApp extends StatelessWidget {
       builder: (context, currentTheme, _) {
         return MaterialApp(
           title: 'Gritos Client',
-          theme: _getThemeData(currentTheme),
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: normalizeThemeMode(currentTheme) == 'dark'
+              ? ThemeMode.dark
+              : ThemeMode.light,
           initialRoute: initialRoute,
           onGenerateRoute: (settings) {
             if (settings.name == '/login') {
@@ -195,86 +186,5 @@ class MyApp extends StatelessWidget {
       },
     );
   }
-
-  ThemeData _getThemeData(String themeName) {
-    ThemeData buildTheme({
-      required Brightness brightness,
-      required Color scaffoldBackgroundColor,
-      required Color surface,
-      Color? appBarBackground,
-    }) {
-      final scheme = ColorScheme.fromSeed(
-        seedColor: const Color(0xFF136F63),
-        brightness: brightness,
-      ).copyWith(secondary: const Color(0xFFFFB703), surface: surface);
-
-      return ThemeData(
-        brightness: brightness,
-        primarySwatch: CustomColors.primary,
-        colorScheme: scheme,
-        scaffoldBackgroundColor: scaffoldBackgroundColor,
-        cardColor: surface,
-        appBarTheme: AppBarTheme(
-          backgroundColor: appBarBackground ?? Colors.transparent,
-          foregroundColor: scheme.onSurface,
-          elevation: 0,
-          centerTitle: false,
-        ),
-        snackBarTheme: SnackBarThemeData(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: scheme.surfaceContainerHighest,
-          contentTextStyle: TextStyle(color: scheme.onSurface),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.7),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(22),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(22),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(22),
-            borderSide: BorderSide(color: scheme.primary, width: 1.2),
-          ),
-        ),
-        cardTheme: CardThemeData(
-          color: surface,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-          ),
-        ),
-        useMaterial3: true,
-      );
-    }
-
-    switch (themeName) {
-      case 'dark':
-        return buildTheme(
-          brightness: Brightness.dark,
-          scaffoldBackgroundColor: const Color(0xFF081C1A),
-          surface: const Color(0xFF102927),
-        );
-      case 'amoled':
-        return buildTheme(
-          brightness: Brightness.dark,
-          scaffoldBackgroundColor: Colors.black,
-          surface: const Color(0xFF101513),
-          appBarBackground: Colors.black,
-        );
-      default:
-        return buildTheme(
-          brightness: Brightness.light,
-          scaffoldBackgroundColor: const Color(0xFFF4F8F6),
-          surface: Colors.white,
-        );
-    }
-  }
 }
+

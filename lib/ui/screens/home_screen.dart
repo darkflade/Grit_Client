@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -17,6 +16,18 @@ import '../../data/models/chat_message.dart';
 import '../../data/models/direct_room.dart';
 import '../../data/models/user.dart';
 import '../../data/models/server_participant.dart';
+import '../theme/app_theme_extension.dart';
+import '../theme/app_spacing.dart';
+import '../widgets/common/status_dot.dart';
+import '../widgets/navigation/app_drawer_panel.dart';
+import '../widgets/navigation/navigation_section_header.dart';
+import '../widgets/navigation/server_tile.dart';
+import '../widgets/navigation/direct_room_tile.dart';
+import '../widgets/chat/messages_view.dart';
+import '../widgets/chat/message_bubble.dart';
+import '../widgets/chat/message_input_bar.dart';
+import '../widgets/chat/message_attachment_card.dart';
+import '../widgets/chat/pinned_messages_bar.dart';
 
 class HomeScreen extends StatefulWidget {
   final ApiClient apiClient;
@@ -126,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Color _webrtcColor(BuildContext context, RTCPeerConnectionState state) {
     switch (state) {
       case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
-        return const Color(0xFF14B86A);
+        return context.appColors.success;
       case RTCPeerConnectionState.RTCPeerConnectionStateConnecting:
         return Theme.of(context).colorScheme.secondary;
       case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
@@ -166,73 +177,6 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.pushReplacementNamed(context, '/login');
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'online':
-        return Colors.green;
-      case 'idle':
-        return Colors.orange;
-      case 'dnd':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _formatFileSize(int bytes) {
-    if (bytes <= 0) return "0 B";
-    const suffixes = ["B", "KB", "MB", "GB", "TB"];
-    var i = (math.log(bytes) / math.log(1024)).floor();
-    return "${(bytes / math.pow(1024, i)).toStringAsFixed(1)} ${suffixes[i]}";
-  }
-
-  bool _isImage(dynamic a) {
-    String type = "";
-    String name = "";
-    if (a is Map) {
-      type = (a['content_type'] ?? a['contentType'])?.toString() ?? "";
-      name = (a['original_name'] ?? a['originalName'])?.toString() ?? "";
-    } else {
-      type = a.contentType?.toString() ?? "";
-      name = a.originalName?.toString() ?? "";
-    }
-    type = type.toLowerCase();
-    name = name.toLowerCase();
-
-    if (type.startsWith("image/")) return true;
-    final ext = name.split('.').last;
-    return ["jpg", "jpeg", "png", "gif", "webp", "bmp"].contains(ext);
-  }
-
-  bool _isVideo(dynamic a) {
-    String type = "";
-    String name = "";
-    if (a is Map) {
-      type = (a['content_type'] ?? a['contentType'])?.toString() ?? "";
-      name = (a['original_name'] ?? a['originalName'])?.toString() ?? "";
-    } else {
-      type = a.contentType?.toString() ?? "";
-      name = a.originalName?.toString() ?? "";
-    }
-    type = type.toLowerCase();
-    name = name.toLowerCase();
-
-    if (type.startsWith("video/")) return true;
-    final ext = name.split('.').last;
-    return [
-      "mp4",
-      "mov",
-      "wmv",
-      "avi",
-      "avchd",
-      "flv",
-      "f4v",
-      "swf",
-      "mkv",
-      "webm",
-    ].contains(ext);
-  }
-
   void _scrollListener() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
@@ -252,7 +196,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // From ~700px we show the navigation panel permanently on the left
+        // and drop the Drawer; below that we keep the mobile Drawer flow.
+        final isWide = constraints.maxWidth >= 700;
+        return Scaffold(
       appBar: AppBar(
         flexibleSpace: Container(
           decoration: BoxDecoration(
@@ -352,32 +301,74 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      drawer: _buildDrawer(),
-      body: Stack(
-        children: [
-          AnimatedBuilder(
-            animation: Listenable.merge([
-              _controller.isLoading,
-              _controller.currentServer,
-              _controller.currentRoom,
-              _controller.currentDirectRoom,
-              _controller.isDirectChat,
-            ]),
-            builder: (context, _) {
-              final chatActive = _isChatActive();
-              return Column(
-                children: [
-                  _buildActiveCallBar(),
-                  Expanded(child: _buildPrimaryContent()),
-                  if (chatActive) _buildTypingIndicator(),
-                  if (chatActive) _buildInputArea(),
-                ],
-              );
-            },
-          ),
-          _buildIncomingCallOverlay(),
-        ],
+      drawer: isWide ? null : _buildDrawer(inDrawer: true),
+      body: isWide
+          ? Row(
+              children: [
+                _buildSideNavigation(),
+                Expanded(child: _buildBodyStack()),
+              ],
+            )
+          : _buildBodyStack(),
+        );
+      },
+    );
+  }
+
+  /// Persistent navigation panel shown on the left for wide layouts.
+  Widget _buildSideNavigation() {
+    return Container(
+      width: 300,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          right: BorderSide(color: Theme.of(context).dividerColor),
+        ),
       ),
+      child: SafeArea(
+        right: false,
+        child: Column(
+          children: [
+            _buildDrawerHeader(),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                children: _buildNavChildren(inDrawer: false),
+              ),
+            ),
+            Divider(height: 1, color: Theme.of(context).dividerColor),
+            _buildNavFooter(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBodyStack() {
+    return Stack(
+      children: [
+        AnimatedBuilder(
+          animation: Listenable.merge([
+            _controller.isLoading,
+            _controller.currentServer,
+            _controller.currentRoom,
+            _controller.currentDirectRoom,
+            _controller.isDirectChat,
+          ]),
+          builder: (context, _) {
+            final chatActive = _isChatActive();
+            return Column(
+              children: [
+                _buildActiveCallBar(),
+                Expanded(child: _buildPrimaryContent()),
+                if (chatActive) _buildTypingIndicator(),
+                if (chatActive) _buildInputArea(),
+              ],
+            );
+          },
+        ),
+        _buildIncomingCallOverlay(),
+      ],
     );
   }
 
@@ -427,7 +418,9 @@ class _HomeScreenState extends State<HomeScreen> {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.shadow.withValues(alpha: 0.2),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -477,8 +470,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: _controller.acceptCall,
                   icon: const Icon(Icons.check_rounded),
                   style: IconButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
+                    backgroundColor: context.appColors.success,
+                    foregroundColor: context.appColors.onAccent,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -486,8 +479,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: _controller.declineCall,
                   icon: const Icon(Icons.close_rounded),
                   style: IconButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: context.appColors.onAccent,
                   ),
                 ),
               ],
@@ -585,7 +578,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               ? '$remoteAudioCount remote audio'
                                               : 'Waiting for audio',
                                           color: remoteAudioCount > 0
-                                              ? const Color(0xFF14B86A)
+                                              ? context.appColors.success
                                               : Theme.of(
                                                   context,
                                                 ).colorScheme.outline,
@@ -699,11 +692,16 @@ class _HomeScreenState extends State<HomeScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             decoration: BoxDecoration(
                               color: isSpeaking
-                                  ? Colors.green.withValues(alpha: 0.2)
+                                  ? context.appColors.success.withValues(
+                                      alpha: 0.2,
+                                    )
                                   : Theme.of(context).colorScheme.surface,
                               borderRadius: BorderRadius.circular(20),
                               border: isSpeaking
-                                  ? Border.all(color: Colors.green, width: 2)
+                                  ? Border.all(
+                                      color: context.appColors.success,
+                                      width: 2,
+                                    )
                                   : null,
                             ),
                             child: Row(
@@ -732,10 +730,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 if (isMuted) ...[
                                   const SizedBox(width: 4),
-                                  const Icon(
+                                  Icon(
                                     Icons.mic_off,
                                     size: 12,
-                                    color: Colors.red,
+                                    color: Theme.of(context).colorScheme.error,
                                   ),
                                 ],
                               ],
@@ -771,10 +769,10 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 8),
               Text(
                 "${users.length} user${users.length > 1 ? 's are' : ' is'} typing...",
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontStyle: FontStyle.italic,
-                  color: Colors.grey,
+                  color: context.appColors.textMuted,
                 ),
               ),
             ],
@@ -784,181 +782,163 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildDrawer() {
-    return Drawer(
+  Widget _buildDrawer({required bool inDrawer}) {
+    return AppDrawerPanel(
       width: MediaQuery.of(context).size.width.clamp(320.0, 420.0).toDouble(),
-      child: Column(
-        children: <Widget>[
-          UserAccountsDrawerHeader(
-            accountName: ValueListenableBuilder(
-              valueListenable: _controller.currentUser,
-              builder: (_, user, _) => Text(
-                user?.nickname ?? 'Loading...',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontWeight: FontWeight.bold,
-                ),
+      header: _buildDrawerHeader(),
+      footer: _buildNavFooter(),
+      children: _buildNavChildren(inDrawer: inDrawer),
+    );
+  }
+
+  void _closeDrawerIfNeeded(bool inDrawer) {
+    if (inDrawer) Navigator.pop(context);
+  }
+
+  Widget _buildNavFooter() {
+    return ListTile(
+      leading: Icon(
+        Icons.logout_rounded,
+        color: Theme.of(context).colorScheme.error,
+      ),
+      title: Text(
+        'Logout',
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.error,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      onTap: () async {
+        await _controller.logout();
+        if (mounted) Navigator.pushReplacementNamed(context, '/login');
+      },
+    );
+  }
+
+  List<Widget> _buildNavChildren({required bool inDrawer}) {
+    return [
+      ListTile(
+        leading: const Icon(Icons.people_alt_rounded),
+        title: const Text('Friends'),
+        onTap: () {
+          _closeDrawerIfNeeded(inDrawer);
+          Navigator.pushNamed(context, '/friends');
+        },
+      ),
+      const SizedBox(height: AppSpacing.sm),
+      _buildServersList(inDrawer),
+      const SizedBox(height: AppSpacing.md),
+      _buildDirectRoomsList(inDrawer),
+    ];
+  }
+
+  Widget _buildDrawerHeader() {
+    return UserAccountsDrawerHeader(
+      accountName: ValueListenableBuilder(
+        valueListenable: _controller.currentUser,
+        builder: (_, user, _) => Text(
+          user?.nickname ?? 'Loading...',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      accountEmail: ValueListenableBuilder(
+        valueListenable: _controller.currentUser,
+        builder: (_, user, _) => Row(
+          children: [
+            StatusDot(
+              status: user?.status ?? "",
+              size: 10,
+              ringColor: Theme.of(context).colorScheme.surface,
+              ringWidth: 1,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              user?.status.toUpperCase() ?? "",
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
-            accountEmail: ValueListenableBuilder(
-              valueListenable: _controller.currentUser,
-              builder: (_, user, _) => Row(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(user?.status ?? ""),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    user?.status.toUpperCase() ?? "",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            currentAccountPicture: ValueListenableBuilder<User?>(
-              valueListenable: _controller.currentUser,
-              builder: (context, user, _) {
-                if (user?.avatarUrl != null) {
-                  return FutureBuilder<Uint8List?>(
-                    future: widget.apiClient.getFileBytes(user!.avatarUrl!),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasData && snapshot.data != null) {
-                        return CircleAvatar(
-                          backgroundImage: MemoryImage(snapshot.data!),
-                        );
-                      }
-                      return CircleAvatar(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        child: const Icon(
-                          Icons.person,
-                          size: 40,
-                          color: Colors.white,
-                        ),
-                      );
-                    },
+          ],
+        ),
+      ),
+      currentAccountPicture: ValueListenableBuilder<User?>(
+        valueListenable: _controller.currentUser,
+        builder: (context, user, _) {
+          if (user?.avatarUrl != null) {
+            return FutureBuilder<Uint8List?>(
+              future: widget.apiClient.getFileBytes(user!.avatarUrl!),
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data != null) {
+                  return CircleAvatar(
+                    backgroundImage: MemoryImage(snapshot.data!),
                   );
                 }
                 return CircleAvatar(
                   backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: const Icon(
+                  child: Icon(
                     Icons.person,
                     size: 40,
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onPrimary,
                   ),
                 );
               },
+            );
+          }
+          return CircleAvatar(
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            child: Icon(
+              Icons.person,
+              size: 40,
+              color: Theme.of(context).colorScheme.onPrimary,
             ),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHigh,
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.people_alt_rounded),
-                  title: const Text('Friends'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushNamed(context, '/friends');
-                  },
-                ),
-                const Divider(),
-                _buildServersList(),
-                const Divider(),
-                _buildDirectRoomsList(),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.logout_rounded, color: Colors.red),
-            title: const Text(
-              'Logout',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-            ),
-            onTap: () async {
-              await _controller.logout();
-              if (mounted) Navigator.pushReplacementNamed(context, '/login');
-            },
-          ),
-        ],
+          );
+        },
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
       ),
     );
   }
 
-  Widget _buildServersList() {
+  Widget _buildServersList(bool inDrawer) {
     return ValueListenableBuilder<List<Server>>(
       valueListenable: _controller.servers,
       builder: (context, servers, _) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'SERVERS',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Accept invite',
-                    icon: const Icon(Icons.input_rounded),
-                    onPressed: _showAcceptInviteDialog,
-                  ),
-                  IconButton(
-                    tooltip: 'Create server',
-                    icon: const Icon(Icons.add_rounded),
-                    onPressed: _showCreateServerDialog,
-                  ),
-                ],
-              ),
+            NavigationSectionHeader(
+              label: 'Servers',
+              actions: [
+                IconButton(
+                  tooltip: 'Accept invite',
+                  icon: const Icon(Icons.input_rounded),
+                  onPressed: _showAcceptInviteDialog,
+                ),
+                IconButton(
+                  tooltip: 'Create server',
+                  icon: const Icon(Icons.add_rounded),
+                  onPressed: _showCreateServerDialog,
+                ),
+              ],
             ),
             ...servers.map((server) {
               return AnimatedBuilder(
                 animation: Listenable.merge([
                   _controller.currentServer,
                   _controller.currentRoom,
+                  _controller.isDirectChat,
                 ]),
                 builder: (context, _) {
                   final selected =
                       _controller.currentServer.value?.id == server.id &&
                       _controller.currentRoom.value == null &&
                       !_controller.isDirectChat.value;
-                  return ListTile(
-                    title: Text(
-                      server.name,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    leading: const Icon(Icons.dns_rounded),
-                    selected: selected,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 6,
-                    ),
-                    onTap: () {
-                      _controller.selectServer(server);
-                      Navigator.pop(context);
-                    },
-                  );
+                  return _buildServerNavTile(server, selected, inDrawer);
                 },
               );
             }),
@@ -968,47 +948,102 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildDirectRoomsList() {
+  Widget _buildServerNavTile(Server server, bool selected, bool inDrawer) {
+    void onTap() {
+      _controller.selectServer(server);
+      _closeDrawerIfNeeded(inDrawer);
+    }
+
+    final url = server.iconUrl;
+    if (url != null && url.isNotEmpty) {
+      return FutureBuilder<Uint8List?>(
+        future: widget.apiClient.getFileBytes(url),
+        builder: (context, snapshot) {
+          final hasImage = snapshot.hasData && snapshot.data != null;
+          return ServerTile(
+            name: server.name,
+            selected: selected,
+            icon: hasImage ? MemoryImage(snapshot.data!) : null,
+            onTap: onTap,
+          );
+        },
+      );
+    }
+    return ServerTile(name: server.name, selected: selected, onTap: onTap);
+  }
+
+  Widget _buildDirectRoomsList(bool inDrawer) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            'DIRECT MESSAGES',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
-              letterSpacing: 1.1,
-            ),
-          ),
-        ),
+        const NavigationSectionHeader(label: 'Direct Messages'),
         ValueListenableBuilder<List<DirectRoom>>(
           valueListenable: _controller.directRooms,
           builder: (context, dms, _) {
-            return Column(
-              children: dms.map((dm) {
-                return ListTile(
-                  leading: const Icon(Icons.alternate_email_rounded, size: 20),
-                  title: Text(
-                    dm.getDisplayName(_controller.currentUserId ?? ""),
-                  ),
-                  selected: _controller.currentDirectRoom.value?.id == dm.id,
-                  onTap: () {
-                    _controller.selectDirectRoom(dm);
-                    Navigator.pop(context);
-                  },
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 6,
-                  ),
+            return AnimatedBuilder(
+              animation: Listenable.merge([
+                _controller.currentDirectRoom,
+                _controller.isDirectChat,
+              ]),
+              builder: (context, _) {
+                return Column(
+                  children: dms
+                      .map((dm) => _buildDirectNavTile(dm, inDrawer))
+                      .toList(),
                 );
-              }).toList(),
+              },
             );
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildDirectNavTile(DirectRoom dm, bool inDrawer) {
+    final selected =
+        _controller.currentDirectRoom.value?.id == dm.id &&
+        _controller.isDirectChat.value;
+    final title = dm.getDisplayName(_controller.currentUserId ?? "");
+
+    String? status;
+    String? avatarUrl;
+    if (!dm.isGroup) {
+      User? other;
+      for (final member in dm.members) {
+        if (member.id != _controller.currentUserId) {
+          other = member;
+          break;
+        }
+      }
+      status = other?.status;
+      avatarUrl = other?.avatarUrl;
+    }
+
+    void onTap() {
+      _controller.selectDirectRoom(dm);
+      _closeDrawerIfNeeded(inDrawer);
+    }
+
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      return FutureBuilder<Uint8List?>(
+        future: widget.apiClient.getFileBytes(avatarUrl),
+        builder: (context, snapshot) {
+          final hasImage = snapshot.hasData && snapshot.data != null;
+          return DirectRoomTile(
+            title: title,
+            selected: selected,
+            status: status,
+            avatar: hasImage ? MemoryImage(snapshot.data!) : null,
+            onTap: onTap,
+          );
+        },
+      );
+    }
+    return DirectRoomTile(
+      title: title,
+      selected: selected,
+      status: status,
+      onTap: onTap,
     );
   }
 
@@ -1163,19 +1198,10 @@ class _HomeScreenState extends State<HomeScreen> {
           Positioned(
             right: -1,
             bottom: -1,
-            child: Container(
-              width: 11,
-              height: 11,
-              decoration: BoxDecoration(
-                color: participant.online
-                    ? _getStatusColor(user.status)
-                    : Colors.grey,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.surface,
-                  width: 2,
-                ),
-              ),
+            child: StatusDot(
+              status: participant.online ? user.status : 'offline',
+              size: 11,
+              ringColor: Theme.of(context).colorScheme.surface,
             ),
           ),
         ],
@@ -1583,42 +1609,22 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ValueListenableBuilder<List<ChatMessage>>(
             valueListenable: _controller.chatMessages,
             builder: (context, messages, _) {
-              if (messages.isEmpty && !_controller.isLoading.value) {
-                return Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: const Text("No messages yet."),
-                  ),
-                );
-              }
-              return ListView.builder(
-                controller: _scrollController,
-                reverse: true,
-                itemCount: messages.length + 1,
-                padding: const EdgeInsets.fromLTRB(6, 6, 6, 12),
-                itemBuilder: (context, index) {
-                  if (index == messages.length) {
-                    return ValueListenableBuilder<bool>(
-                      valueListenable: _controller.isLoadingMore,
-                      builder: (_, loading, child) => loading
-                          ? const Padding(
-                              padding: EdgeInsets.all(8),
-                              child: Center(child: CircularProgressIndicator()),
-                            )
-                          : const SizedBox.shrink(),
-                    );
-                  }
-                  final msg = messages[index];
-                  final isMe = msg.senderId == _controller.currentUserId;
-                  return _buildMessageTile(msg, isMe);
-                },
+              return MessagesView(
+                scrollController: _scrollController,
+                messages: messages,
+                currentUserId: _controller.currentUserId ?? "",
+                isLoading: _controller.isLoading.value,
+                loadingFooter: ValueListenableBuilder<bool>(
+                  valueListenable: _controller.isLoadingMore,
+                  builder: (_, loading, child) => loading
+                      ? const Padding(
+                          padding: EdgeInsets.all(8),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                itemBuilder: (msg, isMe, isFirstOfGroup) =>
+                    _buildMessageBubble(msg, isMe, isFirstOfGroup),
               );
             },
           ),
@@ -1631,198 +1637,66 @@ class _HomeScreenState extends State<HomeScreen> {
     return ValueListenableBuilder<List<ChatMessage>>(
       valueListenable: _controller.pinnedMessages,
       builder: (context, pins, _) {
-        if (pins.isEmpty) return const SizedBox.shrink();
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            border: Border(
-              bottom: BorderSide(
-                color: Theme.of(context).dividerColor.withValues(alpha: 0.25),
-              ),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.push_pin_rounded,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    "Pinned messages",
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              SizedBox(
-                height: 44,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: pins.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    final message = pins[index];
-                    return ActionChip(
-                      avatar: const Icon(Icons.push_pin_rounded, size: 14),
-                      label: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 220),
-                        child: Text(
-                          message.content.isEmpty
-                              ? "Attachment"
-                              : message.content,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      onPressed: () => _showMessageActions(message),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+        return PinnedMessagesBar(
+          pinned: pins,
+          onTap: _showMessageActions,
         );
       },
     );
   }
 
-  Widget _buildMessageTile(ChatMessage msg, bool isMe) {
+  Widget _buildMessageBubble(ChatMessage msg, bool isMe, bool isFirstOfGroup) {
     final hasAttachments =
         msg.attachments != null && msg.attachments!.isNotEmpty;
     final hasMediaUrl = msg.mediaUrl != null && msg.mediaUrl!.isNotEmpty;
-    final isSending = msg.status == "sending";
 
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.8,
+    final attachments = <Widget>[];
+    if (hasAttachments) {
+      attachments.addAll(
+        msg.attachments!.map(
+          (a) => MessageAttachmentCard(
+            attachment: a,
+            apiClient: widget.apiClient,
+            onDownload: _downloadAttachment,
+          ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!isMe) ...[
-              _buildMessageAvatar(msg.senderId),
-              const SizedBox(width: 8),
-            ],
-            Flexible(
-              child: Card(
-                margin: const EdgeInsets.symmetric(vertical: 2),
-                elevation: 0,
-                color: isMe
-                    ? Theme.of(context).colorScheme.primary.withValues(
-                        alpha: isSending ? 0.08 : 0.15,
-                      )
-                    : Theme.of(context).cardColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: isMe
-                        ? const Radius.circular(16)
-                        : const Radius.circular(4),
-                    bottomRight: isMe
-                        ? const Radius.circular(4)
-                        : const Radius.circular(16),
-                  ),
-                ),
-                child: InkWell(
-                  onLongPress: () => _showMessageActions(msg),
-                  onTap: () => _controller.markAsRead(msg.id),
-                  borderRadius: BorderRadius.circular(16),
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (!isMe)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 4.0),
-                            child: Text(
-                              _controller.getNickname(msg.senderId),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 11,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                        if (msg.content.isNotEmpty)
-                          Text(
-                            msg.content,
-                            style: const TextStyle(fontSize: 15),
-                          ),
-                        if (hasAttachments)
-                          ...msg.attachments!.map((a) => _buildAttachment(a)),
-                        if (!hasAttachments && hasMediaUrl)
-                          _buildAttachment({
-                            "original_name": msg.content.isNotEmpty
-                                ? msg.content
-                                : "File",
-                            "url": msg.mediaUrl!,
-                            "size_bytes": 0,
-                            "content_type": msg.type == "image"
-                                ? "image/jpeg"
-                                : "application/octet-stream",
-                          }),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (msg.pinnedAt != null)
-                              const Padding(
-                                padding: EdgeInsets.only(right: 4.0),
-                                child: Icon(
-                                  Icons.push_pin_rounded,
-                                  size: 10,
-                                  color: Colors.orange,
-                                ),
-                              ),
-                            Text(
-                              "${msg.createdAt.hour}:${msg.createdAt.minute.toString().padLeft(2, '0')}",
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.color
-                                    ?.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            if (isMe)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 4.0),
-                                child: Icon(
-                                  isSending
-                                      ? Icons.access_time_rounded
-                                      : (msg.status == "read"
-                                            ? Icons.done_all_rounded
-                                            : Icons.done_rounded),
-                                  size: 14,
-                                  color: msg.status == "read"
-                                      ? Colors.blue
-                                      : Colors.grey,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+      );
+    } else if (hasMediaUrl) {
+      attachments.add(
+        MessageAttachmentCard(
+          attachment: {
+            "original_name": msg.content.isNotEmpty ? msg.content : "File",
+            "url": msg.mediaUrl!,
+            "size_bytes": 0,
+            "content_type": msg.type == "image"
+                ? "image/jpeg"
+                : "application/octet-stream",
+          },
+          apiClient: widget.apiClient,
+          onDownload: _downloadAttachment,
         ),
-      ),
+      );
+    }
+
+    final showAuthor =
+        !isMe && isFirstOfGroup && !_controller.isDirectChat.value;
+
+    return ValueListenableBuilder<int>(
+      valueListenable: _controller.nicknameVersion,
+      builder: (context, _, child) {
+        return MessageBubble(
+          message: msg,
+          isMe: isMe,
+          showAuthor: showAuthor,
+          authorName: _controller.getNickname(msg.senderId),
+          avatar: (!isMe && isFirstOfGroup)
+              ? _buildMessageAvatar(msg.senderId)
+              : null,
+          attachments: attachments,
+          onTap: () => _controller.markAsRead(msg.id),
+          onLongPress: () => _showMessageActions(msg),
+        );
+      },
     );
   }
 
@@ -1919,280 +1793,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildAttachment(dynamic a) {
-    final isImage = _isImage(a);
-    final isVideo = _isVideo(a);
-
-    final String urlStr = (a is Map ? a['url'] : a.url) ?? "";
-    final fullUrl = urlStr.startsWith("http")
-        ? urlStr
-        : "${widget.apiClient.baseUrl}$urlStr";
-    final String originalName =
-        (a is Map
-            ? (a['original_name'] ?? a['originalName'])
-            : a.originalName) ??
-        "File";
-    final int sizeBytes =
-        (a is Map ? (a['size_bytes'] ?? a['sizeBytes']) : a.sizeBytes) ?? 0;
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? Colors.white.withValues(alpha: 0.05)
-              : Colors.black.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        constraints: const BoxConstraints(maxWidth: 400),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (isImage)
-              FutureBuilder<Uint8List?>(
-                future: widget.apiClient.getFileBytes(fullUrl),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Container(
-                      height: 180,
-                      width: double.infinity,
-                      color: Colors.black12,
-                      child: const Center(
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    );
-                  }
-                  if (snapshot.hasData && snapshot.data != null) {
-                    return ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 400),
-                      child: Image.memory(
-                        snapshot.data!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                      ),
-                    );
-                  }
-                  return Container(
-                    height: 100,
-                    width: double.infinity,
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    child: const Center(
-                      child: Icon(
-                        Icons.broken_image,
-                        size: 32,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  );
-                },
-              )
-            else if (isVideo)
-              Container(
-                height: 180,
-                width: double.infinity,
-                color: Colors.black,
-                child: const Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(
-                      Icons.play_circle_fill_rounded,
-                      size: 64,
-                      color: Colors.white70,
-                    ),
-                  ],
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      isImage
-                          ? Icons.image_rounded
-                          : isVideo
-                          ? Icons.movie_rounded
-                          : Icons.insert_drive_file_rounded,
-                      color: Theme.of(context).colorScheme.primary,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          originalName,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        if (sizeBytes > 0)
-                          Text(
-                            _formatFileSize(sizeBytes),
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.color
-                                  ?.withValues(alpha: 0.6),
-                            ),
-                          )
-                        else
-                          FutureBuilder<Map<String, dynamic>?>(
-                            future: widget.apiClient.getFileMetadata(fullUrl),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return Text(
-                                  "Calculating...",
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.color
-                                        ?.withValues(alpha: 0.4),
-                                  ),
-                                );
-                              }
-                              if (snapshot.hasData &&
-                                  snapshot.data != null &&
-                                  snapshot.data!['size'] != null &&
-                                  snapshot.data!['size'] > 0) {
-                                return Text(
-                                  _formatFileSize(snapshot.data!['size']),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.color
-                                        ?.withValues(alpha: 0.6),
-                                  ),
-                                );
-                              }
-                              return Text(
-                                "0 B",
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.color
-                                      ?.withValues(alpha: 0.4),
-                                ),
-                              );
-                            },
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.download_for_offline_rounded,
-                      size: 22,
-                    ),
-                    tooltip: "Download",
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _downloadAttachment(fullUrl, originalName),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildInputArea() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(
-                context,
-              ).colorScheme.shadow.withValues(alpha: 0.06),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            IconButton(
-              icon: Icon(
-                Icons.add_circle_outline_rounded,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              onPressed: () async {
-                final text = _messageTextController.text;
-                await _controller.pickAndSendFile(text);
-                if (mounted && text.isNotEmpty) {
-                  _messageTextController.clear();
-                  _controller.sendTypingIndicator(false);
-                }
-              },
-            ),
-            Expanded(
-              child: TextField(
-                controller: _messageTextController,
-                minLines: 1,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  hintText: 'Type a message...',
-                  border: InputBorder.none,
-                  filled: false,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 10,
-                  ),
-                ),
-                onChanged: (val) =>
-                    _controller.sendTypingIndicator(val.isNotEmpty),
-                onSubmitted: (_) => _send(),
-              ),
-            ),
-            Container(
-              margin: const EdgeInsets.only(right: 4),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: IconButton(
-                icon: Icon(
-                  Icons.send_rounded,
-                  color: Theme.of(context).colorScheme.onPrimary,
-                ),
-                onPressed: _send,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return MessageInputBar(
+      controller: _messageTextController,
+      onSend: _send,
+      onAttach: () async {
+        final text = _messageTextController.text;
+        await _controller.pickAndSendFile(text);
+        if (mounted && text.isNotEmpty) {
+          _messageTextController.clear();
+          _controller.sendTypingIndicator(false);
+        }
+      },
+      onChanged: (val) => _controller.sendTypingIndicator(val.isNotEmpty),
     );
   }
 
@@ -2239,7 +1852,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ? Theme.of(context).colorScheme.primary
         : Theme.of(context).colorScheme.surface;
     final foregroundColor = danger || active
-        ? Colors.white
+        ? context.appColors.onAccent
         : Theme.of(context).colorScheme.onSurface;
 
     return Material(

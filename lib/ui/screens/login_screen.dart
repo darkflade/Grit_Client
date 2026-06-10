@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import '../controllers/login_controller.dart';
 import '../../core/storage/storage_service.dart';
 import '../../data/api/rest.dart';
+import '../theme/app_spacing.dart';
+import '../theme/app_radii.dart';
+import '../widgets/common/app_button.dart';
+import '../widgets/common/app_text_field.dart';
+import '../widgets/common/app_card.dart';
 
 class LoginScreen extends StatefulWidget {
   final ApiClient apiClient; // Added apiClient field
@@ -87,87 +92,195 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_isLogin ? 'Login' : 'Register')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              if (!_isLogin)
-                TextFormField(
-                  controller: _nicknameController,
-                  decoration: const InputDecoration(labelText: 'Nickname'),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your nickname';
-                    }
-                    return null;
-                  },
-                ),
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(labelText: 'Email'),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your email';
-                  }
-                  if (!value.contains('@')) {
-                    return 'Please enter a valid email';
-                  }
-                  return null;
-                },
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.xxl,
+            ),
+            child: ConstrainedBox(
+              // Mobile: nearly full width (minus padding).
+              // Tablet / web: capped so the form stays compact and centered.
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildHeader(context),
+                  const SizedBox(height: AppSpacing.xxxl),
+                  _buildModeSwitch(context),
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildFormCard(context),
+                ],
               ),
-              TextFormField(
-                controller: _passwordController,
-                decoration: const InputDecoration(labelText: 'Password'),
-                obscureText: true,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your password';
-                  }
-                  if (value.length < 6 && !_isLogin) {
-                    // Basic password length for registration
-                    return 'Password must be at least 6 characters';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              if (_isLoading)
-                const CircularProgressIndicator()
-              else
-                ElevatedButton(
-                  onPressed: _submit,
-                  child: Text(_isLogin ? 'Login' : 'Register'),
-                ),
-              if (_errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(
-                    _errorMessage!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _isLogin = !_isLogin;
-                    _errorMessage = null; // Clear error when switching modes
-                    _formKey.currentState?.reset(); // Reset form fields
-                  });
-                },
-                child: Text(
-                  _isLogin ? 'Create an account' : 'Have an account? Sign in',
-                ),
-              ),
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer,
+            borderRadius: AppRadii.brXl,
+          ),
+          child: Icon(
+            Icons.forum_rounded,
+            size: 36,
+            color: theme.colorScheme.onPrimaryContainer,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Text(
+          'Diogen',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.displayMedium,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Secure messaging client',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModeSwitch(BuildContext context) {
+    return SegmentedButton<bool>(
+      segments: const [
+        ButtonSegment<bool>(
+          value: true,
+          label: Text('Login'),
+          icon: Icon(Icons.login_rounded),
+        ),
+        ButtonSegment<bool>(
+          value: false,
+          label: Text('Register'),
+          icon: Icon(Icons.person_add_alt_1_rounded),
+        ),
+      ],
+      selected: {_isLogin},
+      showSelectedIcon: false,
+      onSelectionChanged: (selection) {
+        setState(() {
+          _isLogin = selection.first;
+          _errorMessage = null; // Clear error when switching modes
+          _formKey.currentState?.reset(); // Reset form fields
+        });
+      },
+    );
+  }
+
+  Widget _buildFormCard(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            if (!_isLogin) ...[
+              AppTextField(
+                controller: _nicknameController,
+                label: 'Nickname',
+                prefixIcon: Icons.person_outline_rounded,
+                textInputAction: TextInputAction.next,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your nickname';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+            AppTextField(
+              controller: _emailController,
+              label: 'Email',
+              prefixIcon: Icons.alternate_email_rounded,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your email';
+                }
+                if (!value.contains('@')) {
+                  return 'Please enter a valid email';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              controller: _passwordController,
+              label: 'Password',
+              prefixIcon: Icons.lock_outline_rounded,
+              obscureText: true,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _submit(),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your password';
+                }
+                if (value.length < 6 && !_isLogin) {
+                  // Basic password length for registration
+                  return 'Password must be at least 6 characters';
+                }
+                return null;
+              },
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              _buildErrorBanner(context, _errorMessage!),
+            ],
+            const SizedBox(height: AppSpacing.xl),
+            AppButton(
+              label: _isLogin ? 'Login' : 'Register',
+              fullWidth: true,
+              loading: _isLoading,
+              onPressed: _submit,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(BuildContext context, String message) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      backgroundColor: scheme.errorContainer,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      radius: AppRadii.md,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            size: 20,
+            color: scheme.onErrorContainer,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: scheme.onErrorContainer,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
