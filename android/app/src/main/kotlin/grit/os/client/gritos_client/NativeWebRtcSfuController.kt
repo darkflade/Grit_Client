@@ -63,6 +63,10 @@ class NativeWebRtcSfuController(
                     "addIceCandidate" -> addIceCandidate(call.argument<Map<String, Any?>>("candidate"), result)
                     "setMuted" -> setMuted(call, result)
                     "switchToRelay" -> switchToRelay(call, result)
+                    "prepareForReconnect" -> {
+                        prepareForReconnect()
+                        result.success(null)
+                    }
                     "getDebugSnapshot" -> getDebugSnapshot(result)
                     "close" -> {
                         close()
@@ -142,6 +146,13 @@ class NativeWebRtcSfuController(
 
         emit("onLog", mapOf("level" to "info", "message" to "native Android PeerConnection created"))
         result.success(null)
+    }
+
+    private fun prepareForReconnect() {
+        pendingRemoteCandidates.clear()
+        hasRemoteDescription = false
+        makingOffer = false
+        emit("onLog", mapOf("level" to "warn", "message" to "native signaling reconnected; waiting for SFU rejoin"))
     }
 
     private fun startOffer(reason: String, result: MethodChannel.Result) {

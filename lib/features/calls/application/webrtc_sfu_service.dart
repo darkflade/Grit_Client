@@ -99,6 +99,7 @@ class WebRtcSfuService {
   int? _lastInboundBytes;
   bool _relayFallbackInFlight = false;
   bool _relayFallbackUsed = false;
+  Timer? _negotiationRetryTimer;
 
   final _mediaDevices = ValueNotifier<List<MediaDeviceInfo>>([]);
   ValueListenable<List<MediaDeviceInfo>> get mediaDevices => _mediaDevices;
@@ -715,10 +716,13 @@ class WebRtcSfuService {
           'signaling_state': signalingState.toString(),
         },
       );
+      _scheduleNegotiationRetry(reason);
       return;
     }
 
     try {
+      _negotiationRetryTimer?.cancel();
+      _negotiationRetryTimer = null;
       _makingOffer = true;
       _log.info('creating offer', data: {'reason': reason});
       final offer = await peerConnection.createOffer();
@@ -734,6 +738,14 @@ class WebRtcSfuService {
     } finally {
       _makingOffer = false;
     }
+  }
+
+  void _scheduleNegotiationRetry(String reason) {
+    if (_negotiationRetryTimer != null || _disposed) return;
+    _negotiationRetryTimer = Timer(const Duration(milliseconds: 500), () {
+      _negotiationRetryTimer = null;
+      unawaited(_negotiate('$reason-retry'));
+    });
   }
 
   Future<MediaStream?> _acquireLocalMedia() async {
@@ -1120,6 +1132,22 @@ class WebRtcSfuService {
     unawaited(_negotiate("sfu-joined"));
   }
 
+  void handleSignalingReconnected() {
+    if (_disposed) return;
+    sessionId = null;
+    _hasRemoteDescription = false;
+    _pendingRemoteCandidates.clear();
+    final native = _nativeAndroid;
+    if (native != null) {
+      unawaited(
+        native.prepareForReconnect().catchError((Object e) {
+          _log.warn('failed to prepare native reconnect', data: e.toString());
+        }),
+      );
+    }
+    _log.warn('signaling reconnected; waiting for SFU rejoin');
+  }
+
   void handleRtcRoomParticipants(Map<String, dynamic> data) {
     if (_disposed) return;
     final participantsList = data['participants'];
@@ -1474,6 +1502,8 @@ class WebRtcSfuService {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    _negotiationRetryTimer?.cancel();
+    _negotiationRetryTimer = null;
     _iceRestartController.dispose();
     _stopInboundStatsWatch();
     final native = _nativeAndroid;

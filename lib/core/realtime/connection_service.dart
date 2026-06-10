@@ -527,6 +527,14 @@ class ConnectionService {
     for (final entry in _joinedRooms.entries) {
       eventTransport.joinRoom(entry.value, entry.key);
     }
+    for (final entry in _sfuSessions.entries) {
+      _log.info(
+        'restoring SFU session after reconnect',
+        data: {'room_id': entry.key},
+      );
+      entry.value.handleSignalingReconnected();
+      eventTransport.sfuJoin(entry.key);
+    }
   }
 
   void dispose() {

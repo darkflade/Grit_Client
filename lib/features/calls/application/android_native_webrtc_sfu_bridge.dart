@@ -85,6 +85,10 @@ class AndroidNativeWebRtcSfuBridge {
     });
   }
 
+  Future<void> prepareForReconnect() {
+    return _channel.invokeMethod<void>('prepareForReconnect');
+  }
+
   Future<Map<String, String>> getDebugSnapshot() async {
     final raw = await _channel.invokeMapMethod<String, Object?>(
       'getDebugSnapshot',
