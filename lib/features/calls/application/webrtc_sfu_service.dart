@@ -484,6 +484,46 @@ class WebRtcSfuService {
     return next;
   }
 
+  /// Counts STUN/TURN servers in an RTC configuration and whether any TURN
+  /// server carries credentials. Used to make "no usable relay" situations
+  /// visible in logs — the root cause when relay-only ICE silently fails.
+  Map<String, dynamic> _iceServersDiagnostics(
+    Map<String, dynamic> configuration,
+  ) {
+    final servers = configuration['iceServers'];
+    var stunCount = 0;
+    var turnCount = 0;
+    var turnWithCreds = 0;
+    if (servers is List) {
+      for (final server in servers.whereType<Map>()) {
+        final urls = server['urls'];
+        final urlList = (urls is List ? urls : [urls]).whereType<String>();
+        final hasTurn = urlList.any(
+          (url) => url.startsWith('turn:') || url.startsWith('turns:'),
+        );
+        final hasStun = urlList.any((url) => url.startsWith('stun:'));
+        if (hasTurn) {
+          turnCount += 1;
+          final username = server['username'];
+          final credential = server['credential'];
+          if (username is String &&
+              username.isNotEmpty &&
+              credential is String &&
+              credential.isNotEmpty) {
+            turnWithCreds += 1;
+          }
+        }
+        if (hasStun) stunCount += 1;
+      }
+    }
+    return {
+      'stun_count': stunCount,
+      'turn_count': turnCount,
+      'turn_with_creds': turnWithCreds,
+      'has_turn': turnCount > 0,
+    };
+  }
+
   void _logRtcConfiguration(Map<String, dynamic> configuration) {
     final servers = configuration['iceServers'];
     final summaries = servers is List
@@ -501,14 +541,30 @@ class WebRtcSfuService {
             };
           }).toList()
         : const [];
+    final diagnostics = _iceServersDiagnostics(configuration);
     _log.info(
       'RTC configuration loaded',
       data: {
         'ice_mode': configuration['iceMode'],
         'ice_policy': configuration['iceTransportPolicy'],
+        ...diagnostics,
         'ice_servers': summaries,
       },
     );
+    final policy = configuration['iceTransportPolicy'];
+    if (policy == 'relay' && diagnostics['has_turn'] != true) {
+      _log.warn(
+        'relay-only ICE policy WITHOUT any TURN server — ICE will fail '
+        '(no relay candidates can be gathered)',
+        data: diagnostics,
+      );
+    } else if (diagnostics['turn_count'] != 0 &&
+        diagnostics['turn_with_creds'] == 0) {
+      _log.warn(
+        'TURN servers present but NONE have credentials — relay will likely fail',
+        data: diagnostics,
+      );
+    }
   }
 
   DateTime _resolveRtcConfigExpiry(Map<String, dynamic> config) {
@@ -937,16 +993,47 @@ class WebRtcSfuService {
 
       final now = DateTime.now();
       final connectedAt = _connectedAt ?? now;
+      final connectedForMs = now.difference(connectedAt).inMilliseconds;
       if (now.difference(connectedAt) < _mediaDeadFallbackDelay) return;
 
       final previous = _lastInboundBytes;
       _lastInboundBytes = inboundBytes;
+      final deltaBytes = previous == null ? null : inboundBytes - previous;
+      _log.debug(
+        'inbound stats check',
+        data: {
+          'inbound_reports': inboundReports,
+          'inbound_bytes': inboundBytes,
+          'prev_bytes': previous,
+          'delta_bytes': deltaBytes,
+          'connected_for_ms': connectedForMs,
+          'no_inbound_since_ms': _noInboundSince == null
+              ? null
+              : now.difference(_noInboundSince!).inMilliseconds,
+          'expected_remote_tracks': _expectedRemoteTrackIds.length,
+          'seen_remote_tracks': _seenRemoteTrackIds.length,
+        },
+      );
       if (previous == null || inboundBytes > previous) {
+        if (_noInboundSince != null) {
+          _log.debug('inbound media resumed, clearing stall timer');
+        }
         _noInboundSince = null;
         return;
       }
 
       _noInboundSince ??= now;
+      final stalledForMs = now.difference(_noInboundSince!).inMilliseconds;
+      _log.warn(
+        'inbound media appears stalled',
+        data: {
+          'stalled_for_ms': stalledForMs,
+          'threshold_ms': _mediaDeadFallbackDelay.inMilliseconds,
+          'inbound_bytes': inboundBytes,
+          'ice': _iceConnectionState.name,
+          'connection': _connectionStateValue.value.name,
+        },
+      );
       if (now.difference(_noInboundSince!) >= _mediaDeadFallbackDelay) {
         await _switchToRelayAndRestart('inbound-media-stalled');
       }
@@ -965,7 +1052,27 @@ class WebRtcSfuService {
   }
 
   Future<void> _switchToRelayAndRestart(String reason) async {
-    if (_webRtcIceMode != _iceModeAuto) return;
+    _log.warn(
+      'relay fallback requested',
+      data: {
+        'reason': reason,
+        'ice_mode': _webRtcIceMode,
+        'native': _nativeAndroid != null,
+        'relay_fallback_used': _relayFallbackUsed,
+        'relay_fallback_in_flight': _relayFallbackInFlight,
+        'ice': _iceConnectionState.name,
+        'connection': _connectionStateValue.value.name,
+        'current_policy':
+            _rtcConfiguration?['iceTransportPolicy']?.toString() ?? '-',
+      },
+    );
+    if (_webRtcIceMode != _iceModeAuto) {
+      _log.info(
+        'relay fallback skipped: ice mode is not auto',
+        data: {'ice_mode': _webRtcIceMode},
+      );
+      return;
+    }
     final native = _nativeAndroid;
     if (native != null) {
       if (_relayFallbackInFlight || _relayFallbackUsed) return;
@@ -1504,13 +1611,30 @@ class WebRtcSfuService {
     _pendingRemoteCandidates.clear();
     final native = _nativeAndroid;
     if (native != null) {
+      _log.warn(
+        'signaling reconnected (native): preparing native PC for rejoin',
+        data: {
+          'ice': _iceConnectionState.name,
+          'connection': _connectionStateValue.value.name,
+        },
+      );
       unawaited(
         native.prepareForReconnect().catchError((Object e) {
           _log.warn('failed to prepare native reconnect', data: e.toString());
         }),
       );
+      return;
     }
-    _log.warn('signaling reconnected; waiting for SFU rejoin');
+    _log.warn(
+      'signaling reconnected (flutter_webrtc): REUSING existing peer '
+      'connection while server creates a fresh one — DTLS/ICE desync possible',
+      data: {
+        'has_peer_connection': _peerConnection != null,
+        'signaling': _signalingState.name,
+        'ice': _iceConnectionState.name,
+        'connection': _connectionStateValue.value.name,
+      },
+    );
   }
 
   void handleRtcRoomParticipants(Map<String, dynamic> data) {
@@ -1653,7 +1777,18 @@ class WebRtcSfuService {
 
   void restartIce([String reason = 'manual']) {
     if (_disposed) return;
-    _log.warn('requesting ICE restart', data: {'reason': reason});
+    _log.warn(
+      'requesting ICE restart (sending sfu_ice_restart to server)',
+      data: {
+        'reason': reason,
+        'session_id': sessionId ?? '-',
+        'signaling': _signalingState.name,
+        'ice': _iceConnectionState.name,
+        'connection': _connectionStateValue.value.name,
+        'current_policy':
+            _rtcConfiguration?['iceTransportPolicy']?.toString() ?? '-',
+      },
+    );
     transport.sfuSendIceRestart(roomId);
   }
 

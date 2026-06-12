@@ -182,6 +182,7 @@ class NativeWebRtcSfuController(
 
         emit("onLog", mapOf("level" to "info", "message" to "native Android PeerConnection created"))
         emit("onLog", iceConfigLogData(configuration))
+        warnIfNoUsableRelay(configuration, currentIcePolicy)
         startIceTimeline()
         result.success(null)
     }
@@ -383,12 +384,27 @@ class NativeWebRtcSfuController(
             return
         }
         val configuration = call.argument<Map<String, Any?>>("configuration") ?: emptyMap()
+        val reason = call.argument<String>("reason") ?: "native-relay-fallback"
+        emit(
+            "onLog",
+            mapOf(
+                "level" to "warn",
+                "message" to "native relay fallback: switching ICE policy to relay + restartIce",
+                "reason" to reason,
+                "elapsed_ms" to elapsedMs(),
+                "ice" to lastIceState,
+                "connection" to lastConnectionState,
+                "previous_policy" to currentIcePolicy,
+                "relay_fallback_used" to relayFallbackUsed,
+            ) + iceServersDiagnostics(configuration),
+        )
         relayFallbackUsed = true
         currentIcePolicy = "relay"
         emittedRelayGatheringWarning = false
+        warnIfNoUsableRelay(configuration, "relay")
         pc.setConfiguration(parseRtcConfiguration(configuration + mapOf("iceTransportPolicy" to "relay")))
         pc.restartIce()
-        emit("onIceRestartNeeded", mapOf("reason" to (call.argument<String>("reason") ?: "native-relay-fallback")))
+        emit("onIceRestartNeeded", mapOf("reason" to reason))
         result.success(null)
     }
 
@@ -565,6 +581,17 @@ class NativeWebRtcSfuController(
                 if (track.kind() == "audio") {
                     track.setEnabled(true)
                 }
+                emit(
+                    "onLog",
+                    mapOf(
+                        "level" to "info",
+                        "message" to "native remote track received",
+                        "elapsed_ms" to elapsedMs(),
+                        "kind" to track.kind(),
+                        "track_id" to track.id(),
+                        "stream_ids" to streams.map { it.id },
+                    ),
+                )
                 emit(
                     "onTrack",
                     mapOf(
@@ -837,7 +864,62 @@ class NativeWebRtcSfuController(
             "message" to "native RTC config",
             "ice_policy" to currentIcePolicy,
             "ice_servers" to summaries,
+        ) + iceServersDiagnostics(configuration)
+    }
+
+    /// Counts STUN/TURN servers so "relay-only without TURN" situations are
+    /// visible in logs (the root cause when relay ICE silently fails).
+    private fun iceServersDiagnostics(configuration: Map<String, Any?>): Map<String, Any> {
+        val servers = configuration["iceServers"] as? List<*> ?: emptyList<Any>()
+        var stunCount = 0
+        var turnCount = 0
+        var turnWithCreds = 0
+        servers.forEach { raw ->
+            val server = raw as? Map<*, *> ?: return@forEach
+            val urls = when (val rawUrls = server["urls"]) {
+                is String -> listOf(rawUrls)
+                is List<*> -> rawUrls.filterIsInstance<String>()
+                else -> emptyList()
+            }
+            val hasTurn = urls.any { it.startsWith("turn:") || it.startsWith("turns:") }
+            val hasStun = urls.any { it.startsWith("stun:") }
+            if (hasTurn) {
+                turnCount += 1
+                val username = (server["username"] as? String)?.isNotBlank() == true
+                val credential = (server["credential"] as? String)?.isNotBlank() == true
+                if (username && credential) turnWithCreds += 1
+            }
+            if (hasStun) stunCount += 1
+        }
+        return mapOf(
+            "stun_count" to stunCount,
+            "turn_count" to turnCount,
+            "turn_with_creds" to turnWithCreds,
+            "has_turn" to (turnCount > 0),
         )
+    }
+
+    private fun warnIfNoUsableRelay(configuration: Map<String, Any?>, policy: String) {
+        val diagnostics = iceServersDiagnostics(configuration)
+        val hasTurn = diagnostics["has_turn"] == true
+        val turnWithCreds = (diagnostics["turn_with_creds"] as? Int) ?: 0
+        if (policy == "relay" && !hasTurn) {
+            emit(
+                "onLog",
+                mapOf(
+                    "level" to "warn",
+                    "message" to "native relay-only ICE policy WITHOUT any TURN server — ICE will fail",
+                ) + diagnostics,
+            )
+        } else if ((diagnostics["turn_count"] as? Int ?: 0) != 0 && turnWithCreds == 0) {
+            emit(
+                "onLog",
+                mapOf(
+                    "level" to "warn",
+                    "message" to "native TURN servers present but NONE have credentials — relay will likely fail",
+                ) + diagnostics,
+            )
+        }
     }
 
     private fun numberMs(value: Any?): String {
@@ -857,10 +939,22 @@ class NativeWebRtcSfuController(
         audioManager.isSpeakerphoneOn = !useEarpiece
         
         // Ensure volume is up
-        audioManager.setStreamVolume(
-            if (useVoiceStream) AudioManager.STREAM_VOICE_CALL else AudioManager.STREAM_MUSIC,
-            audioManager.getStreamMaxVolume(if (useVoiceStream) AudioManager.STREAM_VOICE_CALL else AudioManager.STREAM_MUSIC) / 2,
-            0
+        val stream = if (useVoiceStream) AudioManager.STREAM_VOICE_CALL else AudioManager.STREAM_MUSIC
+        val maxVolume = audioManager.getStreamMaxVolume(stream)
+        audioManager.setStreamVolume(stream, maxVolume / 2, 0)
+        emit(
+            "onLog",
+            mapOf(
+                "level" to "info",
+                "message" to "native audio route configured",
+                "audio_output" to audioOutput,
+                "use_communication_audio" to useCommunicationAudio,
+                "mode" to (if (useVoiceStream) "in_communication" else "normal"),
+                "speakerphone_on" to !useEarpiece,
+                "stream" to (if (useVoiceStream) "voice_call" else "music"),
+                "volume" to (maxVolume / 2),
+                "max_volume" to maxVolume,
+            ),
         )
     }
 
