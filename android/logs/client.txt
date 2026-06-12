@@ -1,0 +1,832 @@
+I/flutter (30384): [2026-06-12T08:53:27.601127] DBG WT | => join_room | data={type=join_room, keys=server_id,room_id}
+I/flutter (30384): [2026-06-12T08:53:27.804533] DBG WT | <= message | data={type=joined_room, keys=room_id,server_id}
+I/flutter (30384): [2026-06-12T08:53:27.827819] DBG WT | => get_ice_servers | data={type=get_ice_servers, keys=}
+I/flutter (30384): [2026-06-12T08:53:27.856576] DBG WT | <= message | data={type=ice_servers, keys=ice_servers,expires_at,ttl_seconds,ice_transport_policy}
+I/flutter (30384): [2026-06-12T08:53:27.892478] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | RTC configuration loaded | data={"ice_mode":"auto","ice_policy":"all","ice_servers":[{"urls":["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302"],"hasUsername":false,"hasCredential":false},{"urls":["turn:revenant.diogen.space:3478?transport=udp","turn:revenant.diogen.space:3478?transport=tcp","turns:revenant.diogen.space:5349?transport=tcp"],"hasUsername":true,"hasCredential":true}]}
+I/flutter (30384): [2026-06-12T08:53:28.056145] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"start","t":64,"ice":"RTCIceConnectionStateNew","pc":"RTCPeerConnectionStateNew","g":"RTCIceGatheringStateNew","sig":"RTCSignalingStateStable","policy":"all","pair":"-","wr":"-","nom":"-","rtt":"-","checks":"-/-","br":"-","local":"-","remote":"-","pairs":{},"types":"L{} R{}","events":"L0/R0 relay L0/R0","audio":"out 0/0 in 0/0 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:28.057266] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"start","elapsed_ms":64,"since_ice_ms":64,"since_pc_ms":64,"since_gathering_ms":64,"ice":"RTCIceConnectionStateNew","connection":"RTCPeerConnectionStateNew","gathering":"RTCIceGatheringStateNew","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{},"selected_pair":"-","selected_writable":"-","selected_nominated":"-","selected_rtt_ms":"-","selected_requests_sent":"-","selected_responses_received":"-","available_outgoing_bitrate":"-","local_candidate":"-","remote_candidate":"-","local_candidate_types":{},"remote_candidate_types":{},"local_candidate_events":0,"remot
+I/flutter (30384): [chunk 2/2] e_candidate_events":0,"local_relay_events":0,"remote_relay_events":0,"out_audio_bytes":0,"out_audio_packets":0,"in_audio_bytes":0,"in_audio_packets":0,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:28.061299] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | peer connection created | data={"iceServers":[{"urls":["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302"]},{"urls":["turn:revenant.diogen.space:3478?transport=udp","turn:revenant.diogen.space:3478?transport=tcp","turns:revenant.diogen.space:5349?transport=tcp"],"username":"1781330009:019e9e90-1d52-78ea-8d1c-04c463d0e774","credential":"JBH86OEq50f/EiWiBtZjqp/zBkI="}],"iceTransportPolicy":"all","sdpSemantics":"unified-plan","iceMode":"auto"}
+D/ConnectivityManager(30384): sendRequestForNetwork CallingUid : 10413, CallingPid : 30384
+D/ConnectivityManager(30384): requestNetwork; CallingUid : 10413, CallingPid : 30384
+D/ConnectivityManager(30384): requestNetwork; CallingUid : 10413, CallingPid : 30384
+D/FlutterWebRTCPlugin(30384): onIceGatheringChangeGATHERING
+I/FlutterWebRTCPlugin(30384): getUserMedia(audio): mandatory: [], optional: [echoCancellation: true, noiseSuppression: true, autoGainControl: true]
+I/FlutterWebRTCPlugin(30384): getUserMedia(video): ConstraintsMap{mMap={frameRate={ideal=30}, facingMode=user, width={ideal=1920}, height={ideal=1080}}}
+D/FlutterWebRTCPlugin(30384): Creating video capturer using Camera2 API.
+D/FlutterWebRTCPlugin(30384): Create front camera 1 succeeded
+D/FlutterWebRTCPlugin(30384): CameraEventsHandler.waitForCameraOpen
+D/FlutterWebRTCPlugin(30384): CameraEventsHandler.onCameraOpening: cameraName=1
+I/CameraManagerGlobal(30384): postSingleUpdate device: camera id 1 status STATUS_NOT_AVAILABLE
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/chatty  (30384): uid=10413(grit.os.client.gritos_client) signaling_threa identical 1 line
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/chatty  (30384): uid=10413(grit.os.client.gritos_client) signaling_threa identical 3 lines
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): CameraEventsHandler.onFirstFrameAvailable
+D/FlutterWebRTCPlugin(30384): Target: 1280x720@30, Actual: 1280x720@30
+D/FlutterWebRTCPlugin(30384): MediaStream id: 77cdfdff-40bb-4898-a39a-64e7e3eef451
+I/flutter (30384): [2026-06-12T08:53:29.321848] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | acquired local media | data={"stream_id":"77cdfdff-40bb-4898-a39a-64e7e3eef451","audio_tracks":1,"video_tracks":1,"constraints":{"audio":{"mandatory":{},"optional":[{"echoCancellation":true},{"noiseSuppression":true},{"autoGainControl":true}]},"video":{"facingMode":"user","width":{"ideal":1920},"height":{"ideal":1080},"frameRate":{"ideal":30}}}}
+D/AudioManager(30384): setSpeakerphoneOn true
+D/FlutterWebRTCPlugin(30384): onConnectionChangeCLOSED
+D/ConnectivityManager(30384): unregisterNetworkCallback; CallingUid : 10413, CallingPid : 30384
+D/ConnectivityManager(30384): unregisterNetworkCallback; CallingUid : 10413, CallingPid : 30384
+I/flutter (30384): [2026-06-12T08:53:29.715943] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":1734,"ice":"RTCIceConnectionStateNew","pc":"RTCPeerConnectionStateNew","g":"RTCIceGatheringStateNew","sig":"RTCSignalingStateStable","policy":"all","pair":"-","wr":"-","nom":"-","rtt":"-","checks":"-/-","br":"-","local":"-","remote":"-","pairs":{},"types":"L{} R{}","events":"L0/R0 relay L0/R0","audio":"out 0/0 in 0/0 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:29.717008] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":1734,"since_ice_ms":1734,"since_pc_ms":1734,"since_gathering_ms":1734,"ice":"RTCIceConnectionStateNew","connection":"RTCPeerConnectionStateNew","gathering":"RTCIceGatheringStateNew","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{},"selected_pair":"-","selected_writable":"-","selected_nominated":"-","selected_rtt_ms":"-","selected_requests_sent":"-","selected_responses_received":"-","available_outgoing_bitrate":"-","local_candidate":"-","remote_candidate":"-","local_candidate_types":{},"remote_candidate_types":{},"local_candidate_event
+I/flutter (30384): [chunk 2/2] s":0,"remote_candidate_events":0,"local_relay_events":0,"remote_relay_events":0,"out_audio_bytes":0,"out_audio_packets":0,"in_audio_bytes":0,"in_audio_packets":0,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:29.756587] DBG WT | => sfu_join | data={type=sfu_join, keys=room_id}
+I/flutter (30384): [2026-06-12T08:53:29.761448] DBG WT | => get_room_messages | data={type=get_room_messages, keys=room_id,limit}
+I/flutter (30384): [2026-06-12T08:53:29.966782] DBG WT | <= message | data={type=sfu_joined, keys=room_id,scope,session_id}
+I/flutter (30384): [2026-06-12T08:53:29.969463] DBG ConnectionService | SFU <= sfu_joined | data={"room_id":"019ea0a8-1d39-7436-a56c-976e14bc2e84","payload":"{room_id: 019ea0a8-1d39-7436-a56c-976e14bc2e84, scope: server, session_id: 019eba64-88aa-7205-8ea7-9b15f9c9a268}"}
+I/flutter (30384): [2026-06-12T08:53:29.972414] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | joined SFU session | data={"session_id":"019eba64-88aa-7205-8ea7-9b15f9c9a268"}
+I/flutter (30384): [2026-06-12T08:53:29.974848] DBG WT | => sfu_media_state | data={type=sfu_media_state, keys=room_id,microphone_enabled,camera_enabled}
+I/flutter (30384): [2026-06-12T08:53:29.983163] DBG WT | <= message | data={type=rtc_room_participants, keys=server_id,room_id,total,participants}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:29.987035] DBG ConnectionService | SFU <= rtc_room_participants | data={"room_id":"019ea0a8-1d39-7436-a56c-976e14bc2e84","payload":"{server_id: 019ea0a7-0dac-76f7-a94b-949aeeb7c195, room_id: 019ea0a8-1d39-7436-a56c-976e14bc2e84, total: 2, participants: [{user: {id: 019e9e8e-b8f3-7f20-90b2-c9410d947784, nickname: FL4G, avatar_url: null, bio: null, custom_status: , status: online, updated_at: 2026-06-12T05:28:33.528419Z, created_at: 2026-06-06T20:10:14.130791Z}, user_id: 019e9e8e-b8f3-7f20-90b2-c9410d947784, joined_at: 2026-06-12T08:28:36.569567451+03:00, connection_state: connected, track_ids: [019e9e8e-b8f3-7f20-90b2-c9410d947784:d3426249-382a-4680-813b-c20d297c4e4c], track
+I/flutter (30384): [chunk 2/2] _count: 1, online: true}, {user: {id: 019e9e90-1d52-78ea-8d1c-04c463d0e774, nickname: One...<295 more chars>
+I/flutter (30384): [2026-06-12T08:53:30.000761] DBG WT | <= message | data={type=room_messages_snapshot, keys=messages,has_more,limit}
+I/flutter (30384): [2026-06-12T08:53:30.015290] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | creating offer | data={"reason":"sfu-joined"}
+I/flutter (30384): [2026-06-12T08:53:30.104276] DBG WT | <= message | data={type=sfu_media_state, keys=active_audio_track_id,active_camera_track_id,active_screen_audio_track_id,active_screen_track_id,camera_enabled,microphone_enabled,room_id,screen_audio_enabled,screen_share_enabled,user_id}
+I/flutter (30384): [2026-06-12T08:53:30.105057] DBG ConnectionService | SFU <= sfu_media_state | data={"room_id":"019ea0a8-1d39-7436-a56c-976e14bc2e84","payload":"{active_audio_track_id: , active_camera_track_id: , active_screen_audio_track_id: , active_screen_track_id: , camera_enabled: true, microphone_enabled: true, room_id: 019ea0a8-1d39-7436-a56c-976e14bc2e84, screen_audio_enabled: null, screen_share_enabled: null, user_id: 019e9e90-1d52-78ea-8d1c-04c463d0e774}"}
+I/flutter (30384): [2026-06-12T08:53:30.113774] DBG WT | <= message | data={type=sfu_media_state, keys=active_audio_track_id,active_camera_track_id,active_screen_audio_track_id,active_screen_track_id,camera_enabled,microphone_enabled,room_id,screen_audio_enabled,screen_share_enabled,user_id}
+I/flutter (30384): [2026-06-12T08:53:30.114581] DBG ConnectionService | SFU <= sfu_media_state | data={"room_id":"019ea0a8-1d39-7436-a56c-976e14bc2e84","payload":"{active_audio_track_id: , active_camera_track_id: , active_screen_audio_track_id: , active_screen_track_id: , camera_enabled: true, microphone_enabled: true, room_id: 019ea0a8-1d39-7436-a56c-976e14bc2e84, screen_audio_enabled: null, screen_share_enabled: null, user_id: 019e9e90-1d52-78ea-8d1c-04c463d0e774}"}
+E/AudioRecordingConfiguration(30384): Couldn't find device for recording, did recording end already?
+D/ConnectivityManager(30384): sendRequestForNetwork CallingUid : 10413, CallingPid : 30384
+D/ConnectivityManager(30384): requestNetwork; CallingUid : 10413, CallingPid : 30384
+D/ConnectivityManager(30384): requestNetwork; CallingUid : 10413, CallingPid : 30384
+D/FlutterWebRTCPlugin(30384): onIceGatheringChangeGATHERING
+I/flutter (30384): [2026-06-12T08:53:30.287875] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | signaling state changed | data={"state":"RTCSignalingState.RTCSignalingStateHaveLocalOffer"}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+E/AudioRecordingConfiguration(30384): Couldn't find device for recording, did recording end already?
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+E/AudioRecordingConfiguration(30384): Couldn't find device for recording, did recording end already?
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:30.522489] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | sending offer | data={"type":"offer","sdp_length":4231}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:30.721023] DBG WT | => sfu_offer | data={type=sfu_offer, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, sdpType=offer, sdpLength=4231}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/t.gritos_clien(30384): Background concurrent copying GC freed 45117(2MB) AllocSpace objects, 4(208KB) LOS objects, 50% free, 2MB/5MB, paused 3.451ms total 521.025ms
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/chatty  (30384): uid=10413(grit.os.client.gritos_client) signaling_threa identical 3 lines
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/chatty  (30384): uid=10413(grit.os.client.gritos_client) signaling_threa identical 1 line
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:30.877917] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE gathering state changed | data={"state":"RTCIceGatheringState.RTCIceGatheringStateGathering"}
+I/flutter (30384): [2026-06-12T08:53:30.900095] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"127.0.0.1","port":"37271","related_address":"-","related_port":"-","candidate_len":99}
+I/flutter (30384): [2026-06-12T08:53:30.903629] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=99, mid=0, mLine=0}
+I/flutter (30384): [2026-06-12T08:53:30.908585] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"::1","port":"34512","related_address":"-","related_port":"-","candidate_len":93}
+I/flutter (30384): [2026-06-12T08:53:30.909668] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"::1","port":"34512","related_address":"-","related_port":"-","candidate_len":93}
+I/flutter (30384): [2026-06-12T08:53:30.913464] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"host","protocol":"udp","address":"127.0.0.1","port":"40896","related_address":"-","related_port":"-","candidate_len":99}
+I/flutter (30384): [2026-06-12T08:53:30.914591] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=99, mid=1, mLine=1}
+I/flutter (30384): [2026-06-12T08:53:30.919709] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"host","protocol":"udp","address":"::1","port":"59009","related_address":"-","related_port":"-","candidate_len":93}
+I/flutter (30384): [2026-06-12T08:53:30.920529] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"1","mLine":1,"type":"host","protocol":"udp","address":"::1","port":"59009","related_address":"-","related_port":"-","candidate_len":93}
+I/flutter (30384): [2026-06-12T08:53:30.924133] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"192.168.1.5","port":"33593","related_address":"-","related_port":"-","candidate_len":117}
+I/flutter (30384): [2026-06-12T08:53:30.925205] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=117, mid=0, mLine=0}
+I/flutter (30384): [2026-06-12T08:53:30.928429] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"2a00:1e88:316f:fc00:83c:316e:7bbd:f047","port":"39309","related_address":"-","related_port":"-","candidate_len":144}
+I/flutter (30384): [2026-06-12T08:53:30.930317] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"2a00:1e88:316f:fc00:83c:316e:7bbd:f047","port":"39309","related_address":"-","related_port":"-","candidate_len":144}
+I/flutter (30384): [2026-06-12T08:53:30.933797] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"host","protocol":"udp","address":"192.168.1.5","port":"58924","related_address":"-","related_port":"-","candidate_len":117}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:30.935073] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=117, mid=1, mLine=1}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:30.940142] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"host","protocol":"udp","address":"2a00:1e88:316f:fc00:83c:316e:7bbd:f047","port":"54582","related_address":"-","related_port":"-","candidate_len":144}
+I/flutter (30384): [2026-06-12T08:53:30.941294] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"1","mLine":1,"type":"host","protocol":"udp","address":"2a00:1e88:316f:fc00:83c:316e:7bbd:f047","port":"54582","related_address":"-","related_port":"-","candidate_len":144}
+I/flutter (30384): [2026-06-12T08:53:30.945107] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"tcp","address":"127.0.0.1","port":"35216","related_address":"-","related_port":"-","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:30.946440] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=115, mid=0, mLine=0}
+I/flutter (30384): [2026-06-12T08:53:30.951206] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"tcp","address":"::1","port":"50908","related_address":"-","related_port":"-","candidate_len":109}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:30.952084] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"host","protocol":"tcp","address":"::1","port":"50908","related_address":"-","related_port":"-","candidate_len":109}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:30.968625] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"host","protocol":"tcp","address":"127.0.0.1","port":"41958","related_address":"-","related_port":"-","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:30.970291] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=115, mid=1, mLine=1}
+I/flutter (30384): [2026-06-12T08:53:30.979743] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"host","protocol":"tcp","address":"::1","port":"54768","related_address":"-","related_port":"-","candidate_len":109}
+I/flutter (30384): [2026-06-12T08:53:30.980338] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"1","mLine":1,"type":"host","protocol":"tcp","address":"::1","port":"54768","related_address":"-","related_port":"-","candidate_len":109}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:30.990705] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"tcp","address":"127.0.0.1","port":"59131","related_address":"-","related_port":"-","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:30.991630] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=115, mid=0, mLine=0}
+I/flutter (30384): [2026-06-12T08:53:30.996012] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"tcp","address":"::1","port":"58804","related_address":"-","related_port":"-","candidate_len":109}
+I/flutter (30384): [2026-06-12T08:53:30.996736] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"host","protocol":"tcp","address":"::1","port":"58804","related_address":"-","related_port":"-","candidate_len":109}
+I/flutter (30384): [2026-06-12T08:53:30.999298] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"host","protocol":"tcp","address":"127.0.0.1","port":"34884","related_address":"-","related_port":"-","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:31.000260] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=115, mid=1, mLine=1}
+I/flutter (30384): [2026-06-12T08:53:31.003249] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"host","protocol":"tcp","address":"::1","port":"49408","related_address":"-","related_port":"-","candidate_len":109}
+I/flutter (30384): [2026-06-12T08:53:31.003867] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"1","mLine":1,"type":"host","protocol":"tcp","address":"::1","port":"49408","related_address":"-","related_port":"-","candidate_len":109}
+I/flutter (30384): [2026-06-12T08:53:31.006249] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"85.95.176.238","port":"33593","related_address":"192.168.1.5","related_port":"33593","candidate_len":150}
+I/flutter (30384): [2026-06-12T08:53:31.007819] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=150, mid=0, mLine=0}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:31.016300] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","port":"39309","related_address":"2a00:1e88:316f:fc00:83c:316e:7bbd:f047","related_port":"39309","candidate_len":203}
+I/flutter (30384): [2026-06-12T08:53:31.016984] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","port":"39309","related_address":"2a00:1e88:316f:fc00:83c:316e:7bbd:f047","related_port":"39309","candidate_len":203}
+I/flutter (30384): [2026-06-12T08:53:31.019680] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"srflx","protocol":"udp","address":"85.95.176.238","port":"58924","related_address":"192.168.1.5","related_port":"58924","candidate_len":150}
+I/flutter (30384): [2026-06-12T08:53:31.022933] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=150, mid=1, mLine=1}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:31.073864] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"srflx","protocol":"udp","address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","port":"54582","related_address":"2a00:1e88:316f:fc00:83c:316e:7bbd:f047","related_port":"54582","candidate_len":203}
+I/flutter (30384): [2026-06-12T08:53:31.075087] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"1","mLine":1,"type":"srflx","protocol":"udp","address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","port":"54582","related_address":"2a00:1e88:316f:fc00:83c:316e:7bbd:f047","related_port":"54582","candidate_len":203}
+I/flutter (30384): [2026-06-12T08:53:31.085774] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"2605:e440:50::1c1","port":"59414","related_address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","related_port":"39309","candidate_len":180}
+I/flutter (30384): [2026-06-12T08:53:31.086486] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"2605:e440:50::1c1","port":"59414","related_address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","related_port":"39309","candidate_len":180}
+I/flutter (30384): [2026-06-12T08:53:31.088660] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"89.125.200.192","port":"57269","related_address":"85.95.176.238","related_port":"33593","candidate_len":151}
+I/flutter (30384): [2026-06-12T08:53:31.089505] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=151, mid=0, mLine=0}
+I/flutter (30384): [2026-06-12T08:53:31.094115] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"relay","protocol":"udp","address":"89.125.200.192","port":"53816","related_address":"85.95.176.238","related_port":"58924","candidate_len":151}
+I/flutter (30384): [2026-06-12T08:53:31.095048] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=151, mid=1, mLine=1}
+D/FlutterWebRTCPlugin(30384): onConnectionChangeCONNECTING
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+W/OMXUtils(30384): do not know color format 0x7f000011 = 2130706449
+W/OMXUtils(30384): do not know color format 0x10 = 16
+W/OMXUtils(30384): do not know color format 0x7f00a000 = 2130747392
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 1) = {
+I/ACodec  (30384):   int32_t color-format = 2130708361
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 720
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 300000
+I/ACodec  (30384):   float frame-rate = 60.000000
+I/ACodec  (30384):   int32_t height = 1280
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+D/mali_winsys(30384): EGLint new_window_surface(egl_winsys_display *, void *, EGLSurface, EGLConfig, egl_winsys_surface **, EGLBoolean) returns 0x3000
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+D/FlutterWebRTCPlugin(30384): onIceGatheringChangeCOMPLETE
+D/FlutterWebRTCPlugin(30384): onSelectedCandidatePairChanged
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+D/FlutterWebRTCPlugin(30384): onSelectedCandidatePairChanged
+W/OMXUtils(30384): do not know color format 0x7f000011 = 2130706449
+W/OMXUtils(30384): do not know color format 0x10 = 16
+W/OMXUtils(30384): do not know color format 0x7f00a000 = 2130747392
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 4) = {
+I/ACodec  (30384):   int32_t color-format = 2130708361
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 540
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 300000
+I/ACodec  (30384):   float frame-rate = 60.000000
+I/ACodec  (30384):   int32_t height = 960
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+D/FlutterWebRTCPlugin(30384): onConnectionChangeCONNECTED
+D/mali_winsys(30384): EGLint new_window_surface(egl_winsys_display *, void *, EGLSurface, EGLConfig, egl_winsys_surface **, EGLBoolean) returns 0x3000
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 7) = {
+I/ACodec  (30384):   int32_t color-format = 19
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 540
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 300000
+I/ACodec  (30384):   float frame-rate = 31.000000
+I/ACodec  (30384):   int32_t height = 960
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+D/FlutterWebRTCPlugin(30384): onSelectedCandidatePairChanged
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+W/OMXUtils(30384): do not know color format 0x7f000011 = 2130706449
+W/OMXUtils(30384): do not know color format 0x10 = 16
+W/OMXUtils(30384): do not know color format 0x7f00a000 = 2130747392
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 10) = {
+I/ACodec  (30384):   int32_t color-format = 2130708361
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 360
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 230000
+I/ACodec  (30384):   float frame-rate = 60.000000
+I/ACodec  (30384):   int32_t height = 640
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+D/mali_winsys(30384): EGLint new_window_surface(egl_winsys_display *, void *, EGLSurface, EGLConfig, egl_winsys_surface **, EGLBoolean) returns 0x3000
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+I/flutter (30384): [2026-06-12T08:53:31.097414] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"relay","protocol":"udp","address":"2605:e440:50::1c1","port":"56750","related_address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","related_port":"54582","candidate_len":180}
+I/flutter (30384): [2026-06-12T08:53:31.097816] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"1","mLine":1,"type":"relay","protocol":"udp","address":"2605:e440:50::1c1","port":"56750","related_address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","related_port":"54582","candidate_len":180}
+I/flutter (30384): [2026-06-12T08:53:31.101128] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"2605:e440:50::1c1","port":"53566","related_address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","related_port":"59048","candidate_len":180}
+I/flutter (30384): [2026-06-12T08:53:31.101460] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"2605:e440:50::1c1","port":"53566","related_address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","related_port":"59048","candidate_len":180}
+I/flutter (30384): [2026-06-12T08:53:31.112065] DBG WT | <= message | data={type=sfu_answer, keys=type,sdp}
+I/flutter (30384): [2026-06-12T08:53:31.113972] DBG ConnectionService | SFU <= sfu_answer | data={"room_id":"019ea0a8-1d39-7436-a56c-976e14bc2e84","payload":"{type=answer, sdpLength=2455}"}
+I/flutter (30384): [2026-06-12T08:53:31.120209] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"89.125.200.192","port":"64161","related_address":"85.95.176.238","related_port":"36945","candidate_len":151}
+I/flutter (30384): [2026-06-12T08:53:31.120687] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=151, mid=0, mLine=0}
+I/flutter (30384): [2026-06-12T08:53:31.128107] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"185.71.196.242","port":"39971","related_address":"-","related_port":"-","candidate_len":90}
+I/flutter (30384): [2026-06-12T08:53:31.129057] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | queued remote ICE candidate until remote description
+I/flutter (30384): [2026-06-12T08:53:31.131631] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"relay","protocol":"udp","address":"89.125.200.192","port":"61120","related_address":"85.95.176.238","related_port":"42741","candidate_len":151}
+I/flutter (30384): [2026-06-12T08:53:31.132177] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=151, mid=1, mLine=1}
+I/flutter (30384): [2026-06-12T08:53:31.134527] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping remote IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"2a03:e340:3:1a::1","port":"37630","related_address":"-","related_port":"-","candidate_len":92}
+I/flutter (30384): [2026-06-12T08:53:31.136866] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"172.17.0.1","port":"42406","related_address":"-","related_port":"-","candidate_len":85}
+I/flutter (30384): [2026-06-12T08:53:31.137165] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | queued remote ICE candidate until remote description
+I/flutter (30384): [2026-06-12T08:53:31.140510] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"172.18.0.1","port":"37994","related_address":"-","related_port":"-","candidate_len":86}
+I/flutter (30384): [2026-06-12T08:53:31.142423] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | queued remote ICE candidate until remote description
+I/flutter (30384): [2026-06-12T08:53:31.145730] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"1","mLine":1,"type":"relay","protocol":"udp","address":"2605:e440:50::1c1","port":"64558","related_address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","related_port":"37519","candidate_len":180}
+I/flutter (30384): [2026-06-12T08:53:31.146159] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"1","mLine":1,"type":"relay","protocol":"udp","address":"2605:e440:50::1c1","port":"64558","related_address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","related_port":"37519","candidate_len":180}
+I/flutter (30384): [2026-06-12T08:53:31.147532] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping remote IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"2a03:e340:3:1a::1","port":"51328","related_address":"::","related_port":"51328","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:31.149769] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping remote IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"2a03:e340:3:1a::1","port":"40355","related_address":"::","related_port":"40355","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:31.155285] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"185.71.196.242","port":"41775","related_address":"0.0.0.0","related_port":"41775","candidate_len":117}
+I/flutter (30384): [2026-06-12T08:53:31.155571] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | queued remote ICE candidate until remote description
+I/flutter (30384): [2026-06-12T08:53:31.157400] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"185.71.196.242","port":"46033","related_address":"0.0.0.0","related_port":"46033","candidate_len":117}
+I/flutter (30384): [2026-06-12T08:53:31.157699] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | queued remote ICE candidate until remote description
+I/flutter (30384): [2026-06-12T08:53:31.170427] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"gathering-RTCIceGatheringStateGathering","t":3188,"ice":"RTCIceConnectionStateNew","pc":"RTCPeerConnectionStateNew","g":"RTCIceGatheringStateGathering","sig":"RTCSignalingStateHaveLocalOffer","policy":"all","pair":"-","wr":"-","nom":"-","rtt":"-","checks":"-/-","br":"-","local":"-","remote":"-","pairs":{},"types":"L{host: 20, relay: 8, srflx: 4} R{}","events":"L28/R5 relay L8/R0","audio":"out 0/0 in 0/0 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:31.170832] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"gathering-RTCIceGatheringStateGathering","elapsed_ms":3188,"since_ice_ms":3188,"since_pc_ms":3188,"since_gathering_ms":292,"ice":"RTCIceConnectionStateNew","connection":"RTCPeerConnectionStateNew","gathering":"RTCIceGatheringStateGathering","signaling":"RTCSignalingStateHaveLocalOffer","ice_policy":"all","pair_states":{},"selected_pair":"-","selected_writable":"-","selected_nominated":"-","selected_rtt_ms":"-","selected_requests_sent":"-","selected_responses_received":"-","available_outgoing_bitrate":"-","local_candidate":"-","remote_candidate":"-","local_candidate_types":{"host":2
+I/flutter (30384): [chunk 2/2] 0,"relay":8,"srflx":4},"remote_candidate_types":{},"local_candidate_events":28,"remote_candidate_events":5,"local_relay_events":8,"remote_relay_events":0,"out_audio_bytes":0,"out_audio_packets":0,"in_audio_bytes":0,"in_audio_packets":0,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:31.172323] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping remote IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"2a03:e340:3:1a::1","port":"58333","related_address":"::","related_port":"58333","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:31.174583] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping remote IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"2a03:e340:3:1a::1","port":"36183","related_address":"::","related_port":"36183","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:31.177986] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | handling remote answer | data={"type":"answer","sdp_length":2455,"signaling_state":"RTCSignalingState.RTCSignalingStateHaveLocalOffer"}
+I/flutter (30384): [2026-06-12T08:53:31.190935] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":3209,"ice":"RTCIceConnectionStateNew","pc":"RTCPeerConnectionStateNew","g":"RTCIceGatheringStateGathering","sig":"RTCSignalingStateHaveLocalOffer","policy":"all","pair":"-","wr":"-","nom":"-","rtt":"-","checks":"-/-","br":"-","local":"-","remote":"-","pairs":{},"types":"L{host: 20, relay: 8, srflx: 4} R{}","events":"L28/R5 relay L8/R0","audio":"out 0/0 in 0/0 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:31.191331] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":3209,"since_ice_ms":3209,"since_pc_ms":3209,"since_gathering_ms":313,"ice":"RTCIceConnectionStateNew","connection":"RTCPeerConnectionStateNew","gathering":"RTCIceGatheringStateGathering","signaling":"RTCSignalingStateHaveLocalOffer","ice_policy":"all","pair_states":{},"selected_pair":"-","selected_writable":"-","selected_nominated":"-","selected_rtt_ms":"-","selected_requests_sent":"-","selected_responses_received":"-","available_outgoing_bitrate":"-","local_candidate":"-","remote_candidate":"-","local_candidate_types":{"host":20,"relay":8,"srflx":4},"remote_
+I/flutter (30384): [chunk 2/2] candidate_types":{},"local_candidate_events":28,"remote_candidate_events":5,"local_relay_events":8,"remote_relay_events":0,"out_audio_bytes":0,"out_audio_packets":0,"in_audio_bytes":0,"in_audio_packets":0,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:31.194925] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"89.125.200.192","port":"56894","related_address":"0.0.0.0","related_port":"45058","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:31.195263] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | queued remote ICE candidate until remote description
+I/flutter (30384): [2026-06-12T08:53:31.223230] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | signaling state changed | data={"state":"RTCSignalingState.RTCSignalingStateStable"}
+I/flutter (30384): [2026-06-12T08:53:31.226915] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE connection state changed | data={"state":"RTCIceConnectionState.RTCIceConnectionStateChecking"}
+I/flutter (30384): [2026-06-12T08:53:31.258433] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"ice-RTCIceConnectionStateChecking","t":3276,"ice":"RTCIceConnectionStateChecking","pc":"RTCPeerConnectionStateNew","g":"RTCIceGatheringStateGathering","sig":"RTCSignalingStateStable","policy":"all","pair":"-","wr":"-","nom":"-","rtt":"-","checks":"-/-","br":"-","local":"-","remote":"-","pairs":{},"types":"L{host: 10, relay: 4, srflx: 2} R{}","events":"L28/R6 relay L8/R1","audio":"out 0/0 in 0/0 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:31.258760] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"ice-RTCIceConnectionStateChecking","elapsed_ms":3276,"since_ice_ms":30,"since_pc_ms":3276,"since_gathering_ms":380,"ice":"RTCIceConnectionStateChecking","connection":"RTCPeerConnectionStateNew","gathering":"RTCIceGatheringStateGathering","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{},"selected_pair":"-","selected_writable":"-","selected_nominated":"-","selected_rtt_ms":"-","selected_requests_sent":"-","selected_responses_received":"-","available_outgoing_bitrate":"-","local_candidate":"-","remote_candidate":"-","local_candidate_types":{"host":10,"relay":4
+I/flutter (30384): [chunk 2/2] ,"srflx":2},"remote_candidate_types":{},"local_candidate_events":28,"remote_candidate_events":6,"local_relay_events":8,"remote_relay_events":1,"out_audio_bytes":0,"out_audio_packets":0,"in_audio_bytes":0,"in_audio_packets":0,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:31.264525] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | peer connection state changed | data={"state":"RTCPeerConnectionState.RTCPeerConnectionStateConnecting"}
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+W/OMXUtils(30384): do not know color format 0x7f000011 = 2130706449
+W/OMXUtils(30384): do not know color format 0x10 = 16
+W/OMXUtils(30384): do not know color format 0x7f00a000 = 2130747392
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 13) = {
+I/ACodec  (30384):   int32_t color-format = 2130708361
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 270
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 230000
+I/ACodec  (30384):   float frame-rate = 60.000000
+I/ACodec  (30384):   int32_t height = 480
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+D/mali_winsys(30384): EGLint new_window_surface(egl_winsys_display *, void *, EGLSurface, EGLConfig, egl_winsys_surface **, EGLBoolean) returns 0x3000
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+D/FlutterWebRTCPlugin(30384): onAddTrack
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+D/FlutterWebRTCPlugin(30384): setVolume(): 019e9e8e-b8f3-7f20-90b2-c9410d947784:d3426249-382a-4680-813b-c20d297c4e4c,1.0
+I/OMXClient(30384): IOmx service obtained
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 16) = {
+I/ACodec  (30384):   int32_t color-format = 19
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 270
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 230000
+I/ACodec  (30384):   float frame-rate = 31.000000
+I/ACodec  (30384):   int32_t height = 480
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/ACodec  (30384):  [] Now uninitialized
+W/AudioTrack(30384): AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount 4810 -> 4810
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+W/OMXUtils(30384): do not know color format 0x7f000011 = 2130706449
+W/OMXUtils(30384): do not know color format 0x10 = 16
+W/OMXUtils(30384): do not know color format 0x7f00a000 = 2130747392
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 19) = {
+I/ACodec  (30384):   int32_t color-format = 2130708361
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 180
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 230000
+I/ACodec  (30384):   float frame-rate = 60.000000
+I/ACodec  (30384):   int32_t height = 320
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+D/mali_winsys(30384): EGLint new_window_surface(egl_winsys_display *, void *, EGLSurface, EGLConfig, egl_winsys_surface **, EGLBoolean) returns 0x3000
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 22) = {
+I/ACodec  (30384):   int32_t color-format = 19
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 180
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 230000
+I/ACodec  (30384):   float frame-rate = 31.000000
+I/ACodec  (30384):   int32_t height = 320
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+I/MediaCodec(30384): setCodecState state : 1
+I/flutter (30384): [2026-06-12T08:53:31.304214] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"89.125.200.192","port":"56457","related_address":"185.71.196.242","related_port":"60900","candidate_len":122}
+I/flutter (30384): [2026-06-12T08:53:31.446703] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"pc-RTCPeerConnectionStateConnecting","t":3464,"ice":"RTCIceConnectionStateChecking","pc":"RTCPeerConnectionStateConnecting","g":"RTCIceGatheringStateGathering","sig":"RTCSignalingStateStable","policy":"all","pair":"-","wr":"-","nom":"-","rtt":"-","checks":"-/-","br":"-","local":"-","remote":"-","pairs":{"waiting":11,"in-progress":1},"types":"L{host: 10, relay: 4, srflx: 2} R{host: 3}","events":"L28/R7 relay L8/R2","audio":"out 0/0 in 0/0 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:31.447046] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"pc-RTCPeerConnectionStateConnecting","elapsed_ms":3464,"since_ice_ms":219,"since_pc_ms":181,"since_gathering_ms":568,"ice":"RTCIceConnectionStateChecking","connection":"RTCPeerConnectionStateConnecting","gathering":"RTCIceGatheringStateGathering","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"waiting":11,"in-progress":1},"selected_pair":"-","selected_writable":"-","selected_nominated":"-","selected_rtt_ms":"-","selected_requests_sent":"-","selected_responses_received":"-","available_outgoing_bitrate":"-","local_candidate":"-","remote_candidate":"-","local_
+I/flutter (30384): [chunk 2/2] candidate_types":{"host":10,"relay":4,"srflx":2},"remote_candidate_types":{"host":3},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":0,"out_audio_packets":0,"in_audio_bytes":0,"in_audio_packets":0,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:31.449127] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | flushed remote ICE candidates | data={"count":6}
+I/flutter (30384): [2026-06-12T08:53:31.452985] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | added remote ICE candidate
+I/flutter (30384): [2026-06-12T08:53:31.720337] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE gathering state changed | data={"state":"RTCIceGatheringState.RTCIceGatheringStateComplete"}
+I/flutter (30384): [2026-06-12T08:53:31.844860] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"gathering-RTCIceGatheringStateComplete","t":3858,"ice":"RTCIceConnectionStateChecking","pc":"RTCPeerConnectionStateConnecting","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"succeeded","wr":"true","nom":"true","rtt":"118","checks":"1/1","br":"-","local":"relay udp 89.125.200.192 57269","remote":"prflx udp  42406","pairs":{"waiting":23,"in-progress":8,"succeeded":1},"types":"L{relay: 4, host: 8} R{host: 3, srflx: 2, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 0/0 in 0/0 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:31.845341] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"gathering-RTCIceGatheringStateComplete","elapsed_ms":3858,"since_ice_ms":613,"since_pc_ms":575,"since_gathering_ms":119,"ice":"RTCIceConnectionStateChecking","connection":"RTCPeerConnectionStateConnecting","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"waiting":23,"in-progress":8,"succeeded":1},"selected_pair":"succeeded","selected_writable":"true","selected_nominated":"true","selected_rtt_ms":"118","selected_requests_sent":"1","selected_responses_received":"1","available_outgoing_bitrate":"-","local_candidate":"r
+I/flutter (30384): [chunk 2/2] elay udp 89.125.200.192 57269","remote_candidate":"prflx udp  42406","local_candidate_types":{"relay":4,"host":8},"remote_candidate_types":{"host":3,"srflx":2,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":0,"out_audio_packets":0,"in_audio_bytes":0,"in_audio_packets":0,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:31.854826] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | peer connection state changed | data={"state":"RTCPeerConnectionState.RTCPeerConnectionStateConnected"}
+I/flutter (30384): [2026-06-12T08:53:31.876941] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE connection state changed | data={"state":"RTCIceConnectionState.RTCIceConnectionStateConnected"}
+I/flutter (30384): [2026-06-12T08:53:31.998039] DBG WT | <= message | data={type=sfu_offer, keys=type,sdp}
+I/flutter (30384): [2026-06-12T08:53:31.999260] DBG ConnectionService | SFU <= sfu_offer | data={"room_id":"019ea0a8-1d39-7436-a56c-976e14bc2e84","payload":"{type=offer, sdpLength=6040}"}
+I/flutter (30384): [2026-06-12T08:53:32.001426] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | handling remote offer | data={"type":"offer","sdp_length":6040}
+I/flutter (30384): [2026-06-12T08:53:32.326409] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"pc-RTCPeerConnectionStateConnected","t":4344,"ice":"RTCIceConnectionStateConnected","pc":"RTCPeerConnectionStateConnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"118","checks":"2/1","br":"300 kbps","local":"relay udp 89.125.200.192 57269","remote":"prflx udp  42406","pairs":{"waiting":23,"in-progress":9},"types":"L{relay: 4, host: 8} R{host: 3, srflx: 2, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 47/1 in 0/0 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:32.326778] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"pc-RTCPeerConnectionStateConnected","elapsed_ms":4344,"since_ice_ms":448,"since_pc_ms":470,"since_gathering_ms":604,"ice":"RTCIceConnectionStateConnected","connection":"RTCPeerConnectionStateConnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"waiting":23,"in-progress":9},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"118","selected_requests_sent":"2","selected_responses_received":"1","available_outgoing_bitrate":"300 kbps","local_candidate":"relay udp
+I/flutter (30384): [chunk 2/2]  89.125.200.192 57269","remote_candidate":"prflx udp  42406","local_candidate_types":{"relay":4,"host":8},"remote_candidate_types":{"host":3,"srflx":2,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":47,"out_audio_packets":1,"in_audio_bytes":0,"in_audio_packets":0,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:32.350134] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"ice-RTCIceConnectionStateConnected","t":4368,"ice":"RTCIceConnectionStateConnected","pc":"RTCPeerConnectionStateConnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"118","checks":"2/1","br":"300 kbps","local":"relay udp 89.125.200.192 57269","remote":"prflx udp  42406","pairs":{"waiting":21,"in-progress":10,"succeeded":1},"types":"L{relay: 4, host: 8} R{host: 3, srflx: 2, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 253/4 in 0/0 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:32.350506] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"ice-RTCIceConnectionStateConnected","elapsed_ms":4368,"since_ice_ms":471,"since_pc_ms":494,"since_gathering_ms":628,"ice":"RTCIceConnectionStateConnected","connection":"RTCPeerConnectionStateConnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"waiting":21,"in-progress":10,"succeeded":1},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"118","selected_requests_sent":"2","selected_responses_received":"1","available_outgoing_bitrate":"300 kbps","local_candid
+I/flutter (30384): [chunk 2/2] ate":"relay udp 89.125.200.192 57269","remote_candidate":"prflx udp  42406","local_candidate_types":{"relay":4,"host":8},"remote_candidate_types":{"host":3,"srflx":2,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":253,"out_audio_packets":4,"in_audio_bytes":0,"in_audio_packets":0,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:32.553005] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":4570,"ice":"RTCIceConnectionStateConnected","pc":"RTCPeerConnectionStateConnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"succeeded","wr":"false","nom":"true","rtt":"18","checks":"1/1","br":"301 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"waiting":15,"in-progress":13,"succeeded":4},"types":"L{relay: 4, host: 8, srflx: 1} R{host: 3, srflx: 2, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 1162/28 in 0/0 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:32.553523] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":4570,"since_ice_ms":674,"since_pc_ms":696,"since_gathering_ms":831,"ice":"RTCIceConnectionStateConnected","connection":"RTCPeerConnectionStateConnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"waiting":15,"in-progress":13,"succeeded":4},"selected_pair":"succeeded","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"1","selected_responses_received":"1","available_outgoing_bitrate":"301 kbps","local_candidate":"srflx udp 85.95.176.238
+I/flutter (30384): [chunk 2/2]  33593","remote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"relay":4,"host":8,"srflx":1},"remote_candidate_types":{"host":3,"srflx":2,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":1162,"out_audio_packets":28,"in_audio_bytes":0,"in_audio_packets":0,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:32.589355] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | signaling state changed | data={"state":"RTCSignalingState.RTCSignalingStateHaveRemoteOffer"}
+I/flutter (30384): [2026-06-12T08:53:32.606419] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote track received | data={"kind":"audio","track_id":"019e9e8e-b8f3-7f20-90b2-c9410d947784:d3426249-382a-4680-813b-c20d297c4e4c","stream_ids":["019e9e8e-b8f3-7f20-90b2-c9410d947784"]}
+I/flutter (30384): [2026-06-12T08:53:32.907500] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | signaling state changed | data={"state":"RTCSignalingState.RTCSignalingStateStable"}
+I/flutter (30384): [2026-06-12T08:53:33.701718] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | sending answer | data={"type":"answer","sdp_length":7078}
+I/flutter (30384): [2026-06-12T08:53:33.704383] DBG WT | => sfu_answer | data={type=sfu_answer, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, sdpType=answer, sdpLength=7078}
+I/Choreographer(30384): Skipped 51 frames!  The application may be doing too much work on its main thread.
+I/flutter (30384): [2026-06-12T08:53:35.460323] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":7477,"ice":"RTCIceConnectionStateConnected","pc":"RTCPeerConnectionStateConnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"succeeded","wr":"false","nom":"true","rtt":"18","checks":"1/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":34,"waiting":15,"succeeded":3},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 9526/162 in 0/0 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:35.460956] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":7477,"since_ice_ms":3581,"since_pc_ms":3603,"since_gathering_ms":3738,"ice":"RTCIceConnectionStateConnected","connection":"RTCPeerConnectionStateConnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":34,"waiting":15,"succeeded":3},"selected_pair":"succeeded","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"1","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176
+I/flutter (30384): [chunk 2/2] .238 33593","remote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":9526,"out_audio_packets":162,"in_audio_bytes":0,"in_audio_packets":0,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:35.513179] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":7530,"ice":"RTCIceConnectionStateConnected","pc":"RTCPeerConnectionStateConnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"succeeded","wr":"false","nom":"true","rtt":"18","checks":"1/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":34,"waiting":15,"succeeded":3},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 9634/165 in 68/1 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:35.513795] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":7530,"since_ice_ms":3634,"since_pc_ms":3656,"since_gathering_ms":3791,"ice":"RTCIceConnectionStateConnected","connection":"RTCPeerConnectionStateConnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":34,"waiting":15,"succeeded":3},"selected_pair":"succeeded","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"1","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176
+I/flutter (30384): [chunk 2/2] .238 33593","remote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":9634,"out_audio_packets":165,"in_audio_bytes":68,"in_audio_packets":1,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:35.565673] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":7583,"ice":"RTCIceConnectionStateConnected","pc":"RTCPeerConnectionStateConnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"succeeded","wr":"false","nom":"true","rtt":"18","checks":"1/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":34,"waiting":15,"succeeded":3},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 10348/179 in 1051/15 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:35.566352] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":7583,"since_ice_ms":3687,"since_pc_ms":3709,"since_gathering_ms":3844,"ice":"RTCIceConnectionStateConnected","connection":"RTCPeerConnectionStateConnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":34,"waiting":15,"succeeded":3},"selected_pair":"succeeded","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"1","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176
+I/flutter (30384): [chunk 2/2] .238 33593","remote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":10348,"out_audio_packets":179,"in_audio_bytes":1051,"in_audio_packets":15,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:36.025490] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":8043,"ice":"RTCIceConnectionStateConnected","pc":"RTCPeerConnectionStateConnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"succeeded","wr":"false","nom":"true","rtt":"18","checks":"1/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":34,"waiting":15,"succeeded":3},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 12318/207 in 3122/43 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:36.026369] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":8043,"since_ice_ms":4147,"since_pc_ms":4169,"since_gathering_ms":4303,"ice":"RTCIceConnectionStateConnected","connection":"RTCPeerConnectionStateConnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":34,"waiting":15,"succeeded":3},"selected_pair":"succeeded","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"1","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176
+I/flutter (30384): [chunk 2/2] .238 33593","remote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":12318,"out_audio_packets":207,"in_audio_bytes":3122,"in_audio_packets":43,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:36.077037] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | received remote end-of-candidates
+I/flutter (30384): [2026-06-12T08:53:37.012304] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":9030,"ice":"RTCIceConnectionStateConnected","pc":"RTCPeerConnectionStateConnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"succeeded","wr":"false","nom":"true","rtt":"18","checks":"1/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":34,"waiting":15,"succeeded":3},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 14797/256 in 6588/92 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:37.012957] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":9030,"since_ice_ms":5134,"since_pc_ms":5156,"since_gathering_ms":5290,"ice":"RTCIceConnectionStateConnected","connection":"RTCPeerConnectionStateConnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":34,"waiting":15,"succeeded":3},"selected_pair":"succeeded","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"1","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176
+I/flutter (30384): [chunk 2/2] .238 33593","remote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":14797,"out_audio_packets":256,"in_audio_bytes":6588,"in_audio_packets":92,"in_audio_lost":0}
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/flutter (30384): [2026-06-12T08:53:37.791960] DBG WT | <= message | data={type=user_presence_updated, keys=custom_status,status,user_id}
+I/flutter (30384): HomeController: Presence update for 019e9e90-1d52-78ea-8d1c-04c463d0e774: online
+I/ACodec  (30384): app-pid(30384)
+W/OMXUtils(30384): do not know color format 0x7f000011 = 2130706449
+W/OMXUtils(30384): do not know color format 0x10 = 16
+W/OMXUtils(30384): do not know color format 0x7f00a000 = 2130747392
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 25) = {
+I/ACodec  (30384):   int32_t color-format = 2130708361
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 270
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 600000
+I/ACodec  (30384):   float frame-rate = 60.000000
+I/ACodec  (30384):   int32_t height = 480
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+D/mali_winsys(30384): EGLint new_window_surface(egl_winsys_display *, void *, EGLSurface, EGLConfig, egl_winsys_surface **, EGLBoolean) returns 0x3000
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/flutter (30384): [2026-06-12T08:53:38.030530] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":10046,"ice":"RTCIceConnectionStateConnected","pc":"RTCPeerConnectionStateConnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"succeeded","wr":"false","nom":"true","rtt":"18","checks":"1/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":34,"waiting":15,"succeeded":3},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 17273/306 in 10040/142 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:38.032999] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":10046,"since_ice_ms":6150,"since_pc_ms":6172,"since_gathering_ms":6306,"ice":"RTCIceConnectionStateConnected","connection":"RTCPeerConnectionStateConnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":34,"waiting":15,"succeeded":3},"selected_pair":"succeeded","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"1","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.17
+I/flutter (30384): [chunk 2/2] 6.238 33593","remote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":17273,"out_audio_packets":306,"in_audio_bytes":10040,"in_audio_packets":142,"in_audio_lost":0}
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 28) = {
+I/ACodec  (30384):   int32_t color-format = 19
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 270
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 600000
+I/ACodec  (30384):   float frame-rate = 30.000000
+I/ACodec  (30384):   int32_t height = 480
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+I/MediaCodec(30384): setCodecState state : 0
+I/MediaCodec(30384): setCodecState state : 1
+D/FlutterWebRTCPlugin(30384): onConnectionChangeDISCONNECTED
+I/flutter (30384): [2026-06-12T08:53:38.121385] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE connection state changed | data={"state":"RTCIceConnectionState.RTCIceConnectionStateDisconnected"}
+I/flutter (30384): [2026-06-12T08:53:38.124183] WRN SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE disconnected; waiting before restart | data={"room_id":"019ea0a8-1d39-7436-a56c-976e14bc2e84","grace_ms":8000}
+I/flutter (30384): [2026-06-12T08:53:38.127112] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | peer connection state changed | data={"state":"RTCPeerConnectionState.RTCPeerConnectionStateDisconnected"}
+I/flutter (30384): [2026-06-12T08:53:38.186831] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"ice-RTCIceConnectionStateDisconnected","t":10204,"ice":"RTCIceConnectionStateDisconnected","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"succeeded","wr":"false","nom":"true","rtt":"18","checks":"1/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":35,"waiting":14,"succeeded":3},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 17811/313 in 10542/149 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:38.187405] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"ice-RTCIceConnectionStateDisconnected","elapsed_ms":10204,"since_ice_ms":64,"since_pc_ms":58,"since_gathering_ms":6465,"ice":"RTCIceConnectionStateDisconnected","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":35,"waiting":14,"succeeded":3},"selected_pair":"succeeded","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"1","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local
+I/flutter (30384): [chunk 2/2] _candidate":"srflx udp 85.95.176.238 33593","remote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":17811,"out_audio_packets":313,"in_audio_bytes":10542,"in_audio_packets":149,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:38.200852] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"pc-RTCPeerConnectionStateDisconnected","t":10218,"ice":"RTCIceConnectionStateDisconnected","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"succeeded","wr":"false","nom":"true","rtt":"18","checks":"1/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":35,"waiting":14,"succeeded":3},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 17811/313 in 10542/149 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:38.202021] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"pc-RTCPeerConnectionStateDisconnected","elapsed_ms":10218,"since_ice_ms":78,"since_pc_ms":72,"since_gathering_ms":6479,"ice":"RTCIceConnectionStateDisconnected","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":35,"waiting":14,"succeeded":3},"selected_pair":"succeeded","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"1","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local
+I/flutter (30384): [chunk 2/2] _candidate":"srflx udp 85.95.176.238 33593","remote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":17811,"out_audio_packets":313,"in_audio_bytes":10542,"in_audio_packets":149,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:39.017001] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":11034,"ice":"RTCIceConnectionStateDisconnected","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"18","checks":"2/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":47,"waiting":5},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 20304/356 in 13731/192 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:39.017779] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":11034,"since_ice_ms":894,"since_pc_ms":888,"since_gathering_ms":7295,"ice":"RTCIceConnectionStateDisconnected","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":47,"waiting":5},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"2","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176.238 335
+I/flutter (30384): [chunk 2/2] 93","remote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":20304,"out_audio_packets":356,"in_audio_bytes":13731,"in_audio_packets":192,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:40.018747] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":12036,"ice":"RTCIceConnectionStateDisconnected","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"18","checks":"2/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":52},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 23558/406 in 17398/242 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:40.019421] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":12036,"since_ice_ms":1895,"since_pc_ms":1890,"since_gathering_ms":8297,"ice":"RTCIceConnectionStateDisconnected","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":52},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"2","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176.238 33593","remot
+I/flutter (30384): [chunk 2/2] e_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":23558,"out_audio_packets":406,"in_audio_bytes":17398,"in_audio_packets":242,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:41.061252] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":13076,"ice":"RTCIceConnectionStateDisconnected","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"18","checks":"2/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":52},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 26495/456 in 20951/293 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:41.062824] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":13076,"since_ice_ms":2935,"since_pc_ms":2929,"since_gathering_ms":9336,"ice":"RTCIceConnectionStateDisconnected","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":52},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"2","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176.238 33593","remot
+I/flutter (30384): [chunk 2/2] e_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":26495,"out_audio_packets":456,"in_audio_bytes":20951,"in_audio_packets":293,"in_audio_lost":0}
+I/t.gritos_clien(30384): Background concurrent copying GC freed 89880(3MB) AllocSpace objects, 20(740KB) LOS objects, 49% free, 4MB/8MB, paused 265us total 101.497ms
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+W/OMXUtils(30384): do not know color format 0x7f000011 = 2130706449
+W/OMXUtils(30384): do not know color format 0x10 = 16
+W/OMXUtils(30384): do not know color format 0x7f00a000 = 2130747392
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 31) = {
+I/ACodec  (30384):   int32_t color-format = 2130708361
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 360
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 1322000
+I/ACodec  (30384):   float frame-rate = 60.000000
+I/ACodec  (30384):   int32_t height = 640
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+D/mali_winsys(30384): EGLint new_window_surface(egl_winsys_display *, void *, EGLSurface, EGLConfig, egl_winsys_surface **, EGLBoolean) returns 0x3000
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/flutter (30384): [2026-06-12T08:53:42.057467] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":14067,"ice":"RTCIceConnectionStateDisconnected","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"18","checks":"3/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":45},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 30173/506 in 24629/342 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:42.058889] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":14067,"since_ice_ms":3927,"since_pc_ms":3921,"since_gathering_ms":10328,"ice":"RTCIceConnectionStateDisconnected","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":45},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"3","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176.238 33593","remo
+I/flutter (30384): [chunk 2/2] te_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":30173,"out_audio_packets":506,"in_audio_bytes":24629,"in_audio_packets":342,"in_audio_lost":0}
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 34) = {
+I/ACodec  (30384):   int32_t color-format = 19
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 360
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 1322000
+I/ACodec  (30384):   float frame-rate = 30.000000
+I/ACodec  (30384):   int32_t height = 640
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+I/MediaCodec(30384): setCodecState state : 1
+I/flutter (30384): [2026-06-12T08:53:43.070899] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":15085,"ice":"RTCIceConnectionStateDisconnected","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"18","checks":"3/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":45},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 34197/557 in 28511/393 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:43.072497] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":15085,"since_ice_ms":4945,"since_pc_ms":4939,"since_gathering_ms":11346,"ice":"RTCIceConnectionStateDisconnected","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":45},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"3","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176.238 33593","remo
+I/flutter (30384): [chunk 2/2] te_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":34197,"out_audio_packets":557,"in_audio_bytes":28511,"in_audio_packets":393,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:44.057098] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":16072,"ice":"RTCIceConnectionStateDisconnected","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"18","checks":"4/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":45},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 37988/606 in 32369/442 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:44.058620] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":16072,"since_ice_ms":5932,"since_pc_ms":5926,"since_gathering_ms":12333,"ice":"RTCIceConnectionStateDisconnected","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":45},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"4","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176.238 33593","remo
+I/flutter (30384): [chunk 2/2] te_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":37988,"out_audio_packets":606,"in_audio_bytes":32369,"in_audio_packets":442,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:45.056284] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":17071,"ice":"RTCIceConnectionStateDisconnected","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"18","checks":"4/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":45},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 40782/656 in 36022/493 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:45.057921] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":17071,"since_ice_ms":6930,"since_pc_ms":6925,"since_gathering_ms":13331,"ice":"RTCIceConnectionStateDisconnected","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":45},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"4","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176.238 33593","remo
+I/flutter (30384): [chunk 2/2] te_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":40782,"out_audio_packets":656,"in_audio_bytes":36022,"in_audio_packets":493,"in_audio_lost":0}
+I/t.gritos_clien(30384): Background concurrent copying GC freed 81413(3MB) AllocSpace objects, 20(720KB) LOS objects, 49% free, 3MB/7MB, paused 445us total 100.806ms
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+W/OMXUtils(30384): do not know color format 0x7f000011 = 2130706449
+W/OMXUtils(30384): do not know color format 0x10 = 16
+W/OMXUtils(30384): do not know color format 0x7f00a000 = 2130747392
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 37) = {
+I/ACodec  (30384):   int32_t color-format = 2130708361
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 540
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 1321000
+I/ACodec  (30384):   float frame-rate = 60.000000
+I/ACodec  (30384):   int32_t height = 960
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+W/OMXUtils(30384): do not know color format 0x7f000789 = 2130708361
+D/mali_winsys(30384): EGLint new_window_surface(egl_winsys_display *, void *, EGLSurface, EGLConfig, egl_winsys_surface **, EGLBoolean) returns 0x3000
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing->Idle
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Loaded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now kWhatShutdownCompleted event : 8572
+I/ACodec  (30384):  [OMX.Exynos.VP8.Encoder] Now uninitialized
+I/ACodec  (30384):  [] Now kWhatShutdownCompleted event : 8572
+I/MediaCodec(30384): Codec shutdown complete
+I/flutter (30384): [2026-06-12T08:53:46.071678] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":18072,"ice":"RTCIceConnectionStateDisconnected","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"18","checks":"4/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":45},"types":"L{host: 10, relay: 4, srflx: 1} R{srflx: 6, host: 4, prflx: 4, relay: 2}","events":"L28/R7 relay L8/R2","audio":"out 43413/706 in 39494/542 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:46.075459] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":18072,"since_ice_ms":7932,"since_pc_ms":7926,"since_gathering_ms":14333,"ice":"RTCIceConnectionStateDisconnected","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":45},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"4","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candidate":"srflx udp 85.95.176.238 33593","remo
+I/flutter (30384): [chunk 2/2] te_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"srflx":6,"host":4,"prflx":4,"relay":2},"local_candidate_events":28,"remote_candidate_events":7,"local_relay_events":8,"remote_relay_events":2,"out_audio_bytes":43413,"out_audio_packets":706,"in_audio_bytes":39494,"in_audio_packets":542,"in_audio_lost":0}
+I/ACodec  (30384):  [] Now uninitialized
+I/ACodec  (30384): [] onAllocateComponent
+I/OMXClient(30384): IOmx service obtained
+I/flutter (30384): [2026-06-12T08:53:46.185426] WRN SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | requesting ICE restart | data={"reason":"ice-disconnected-timeout"}
+I/flutter (30384): [2026-06-12T08:53:46.187790] DBG WT | => sfu_ice_restart | data={type=sfu_ice_restart, keys=room_id}
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded
+I/ACodec  (30384): app-pid(30384)
+I/ACodec  (30384): app-name : grit.os.client.gritos_client
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] cannot encode HDR static metadata. Ignoring.
+I/ACodec  (30384): setupVideoEncoder succeeded
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] configure, AMessage : AMessage(what = 'conf', target = 40) = {
+I/ACodec  (30384):   int32_t color-format = 19
+I/ACodec  (30384):   int32_t i-frame-interval = 3600
+I/ACodec  (30384):   string mime = "video/x-vnd.on2.vp8"
+I/ACodec  (30384):   int32_t width = 540
+I/ACodec  (30384):   int32_t bitrate-mode = 2
+I/ACodec  (30384):   int32_t bitrate = 1321000
+I/ACodec  (30384):   float frame-rate = 30.000000
+I/ACodec  (30384):   int32_t height = 960
+I/ACodec  (30384):   int32_t encoder = 1
+I/ACodec  (30384): }
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Loaded->Idle
+I/MediaCodec(30384): setCodecState state : 0
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Idle->Executing
+I/ACodec  (30384): [OMX.Exynos.VP8.Encoder] Now Executing
+I/MediaCodec(30384): setCodecState state : 1
+I/flutter (30384): [2026-06-12T08:53:46.382757] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"185.71.196.242","port":"38529","related_address":"-","related_port":"-","candidate_len":90}
+I/flutter (30384): [2026-06-12T08:53:46.386917] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping remote IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"2a03:e340:3:1a::1","port":"51327","related_address":"-","related_port":"-","candidate_len":92}
+I/flutter (30384): [2026-06-12T08:53:46.389765] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"172.17.0.1","port":"49913","related_address":"-","related_port":"-","candidate_len":85}
+I/flutter (30384): [2026-06-12T08:53:46.400494] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"172.18.0.1","port":"57630","related_address":"-","related_port":"-","candidate_len":86}
+I/flutter (30384): [2026-06-12T08:53:46.404672] DBG WT | <= message | data={type=sfu_offer, keys=type,sdp}
+I/flutter (30384): [2026-06-12T08:53:46.405976] DBG ConnectionService | SFU <= sfu_offer | data={"room_id":"019ea0a8-1d39-7436-a56c-976e14bc2e84","payload":"{type=offer, sdpLength=4114}"}
+I/flutter (30384): [2026-06-12T08:53:46.406695] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | handling remote offer | data={"type":"offer","sdp_length":4114}
+I/flutter (30384): [2026-06-12T08:53:46.409894] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping remote IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"2a03:e340:3:1a::1","port":"45385","related_address":"::","related_port":"45385","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:46.412498] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping remote IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"2a03:e340:3:1a::1","port":"52841","related_address":"::","related_port":"52841","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:46.414996] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping remote IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"2a03:e340:3:1a::1","port":"60676","related_address":"::","related_port":"60676","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:46.417404] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping remote IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"2a03:e340:3:1a::1","port":"34277","related_address":"::","related_port":"34277","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:46.419816] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"185.71.196.242","port":"56735","related_address":"0.0.0.0","related_port":"56735","candidate_len":117}
+I/flutter (30384): [2026-06-12T08:53:46.422931] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"185.71.196.242","port":"51560","related_address":"0.0.0.0","related_port":"51560","candidate_len":117}
+I/flutter (30384): [2026-06-12T08:53:46.433779] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"89.125.200.192","port":"57271","related_address":"0.0.0.0","related_port":"42374","candidate_len":115}
+I/flutter (30384): [2026-06-12T08:53:46.449386] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | added remote ICE candidate
+I/flutter (30384): [2026-06-12T08:53:46.451407] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | added remote ICE candidate
+I/flutter (30384): [2026-06-12T08:53:46.453172] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | added remote ICE candidate
+I/flutter (30384): [2026-06-12T08:53:46.468548] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | added remote ICE candidate
+I/flutter (30384): [2026-06-12T08:53:46.470558] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | remote ICE candidate received | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"89.125.200.192","port":"58253","related_address":"185.71.196.242","related_port":"34898","candidate_len":122}
+I/flutter (30384): [2026-06-12T08:53:46.474635] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | added remote ICE candidate
+I/flutter (30384): [2026-06-12T08:53:46.476537] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | added remote ICE candidate
+I/flutter (30384): [2026-06-12T08:53:46.484760] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE connection state changed | data={"state":"RTCIceConnectionState.RTCIceConnectionStateChecking"}
+I/flutter (30384): [2026-06-12T08:53:46.515908] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | added remote ICE candidate
+I/flutter (30384): [2026-06-12T08:53:46.523703] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | signaling state changed | data={"state":"RTCSignalingState.RTCSignalingStateHaveRemoteOffer"}
+I/flutter (30384): [2026-06-12T08:53:46.674266] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"ice-RTCIceConnectionStateChecking","t":18691,"ice":"RTCIceConnectionStateChecking","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateComplete","sig":"RTCSignalingStateHaveRemoteOffer","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"18","checks":"5/1","br":"1447 kbps","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":41,"waiting":32},"types":"L{host: 10, relay: 4, srflx: 1} R{host: 8, srflx: 8, prflx: 4, relay: 4}","events":"L28/R14 relay L8/R4","audio":"out 44635/733 in 40344/554 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:46.675021] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"ice-RTCIceConnectionStateChecking","elapsed_ms":18691,"since_ice_ms":187,"since_pc_ms":8545,"since_gathering_ms":14952,"ice":"RTCIceConnectionStateChecking","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateComplete","signaling":"RTCSignalingStateHaveRemoteOffer","ice_policy":"all","pair_states":{"in-progress":41,"waiting":32},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"5","selected_responses_received":"1","available_outgoing_bitrate":"1447 kbps","local_candid
+I/flutter (30384): [chunk 2/2] ate":"srflx udp 85.95.176.238 33593","remote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":10,"relay":4,"srflx":1},"remote_candidate_types":{"host":8,"srflx":8,"prflx":4,"relay":4},"local_candidate_events":28,"remote_candidate_events":14,"local_relay_events":8,"remote_relay_events":4,"out_audio_bytes":44635,"out_audio_packets":733,"in_audio_bytes":40344,"in_audio_packets":554,"in_audio_lost":0}
+D/FlutterWebRTCPlugin(30384): onIceGatheringChangeGATHERING
+I/flutter (30384): [2026-06-12T08:53:46.720818] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | signaling state changed | data={"state":"RTCSignalingState.RTCSignalingStateStable"}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/t.gritos_clien(30384): Background concurrent copying GC freed 94274(3MB) AllocSpace objects, 22(976KB) LOS objects, 50% free, 3MB/6MB, paused 191us total 219.427ms
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:46.995331] INF SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | sending answer | data={"type":"answer","sdp_length":3420}
+I/flutter (30384): [2026-06-12T08:53:46.996815] DBG WT | => sfu_answer | data={type=sfu_answer, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, sdpType=answer, sdpLength=3420}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:46.998604] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE gathering state changed | data={"state":"RTCIceGatheringState.RTCIceGatheringStateGathering"}
+I/flutter (30384): [2026-06-12T08:53:47.001496] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"192.168.1.5","port":"55749","related_address":"-","related_port":"-","candidate_len":117}
+I/flutter (30384): [2026-06-12T08:53:47.002433] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=117, mid=0, mLine=0}
+I/flutter (30384): [2026-06-12T08:53:47.004873] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"127.0.0.1","port":"37592","related_address":"-","related_port":"-","candidate_len":99}
+I/flutter (30384): [2026-06-12T08:53:47.006035] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=99, mid=0, mLine=0}
+I/flutter (30384): [2026-06-12T08:53:47.008418] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"2a00:1e88:316f:fc00:83c:316e:7bbd:f047","port":"46967","related_address":"-","related_port":"-","candidate_len":144}
+I/flutter (30384): [2026-06-12T08:53:47.009249] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"2a00:1e88:316f:fc00:83c:316e:7bbd:f047","port":"46967","related_address":"-","related_port":"-","candidate_len":144}
+I/flutter (30384): [2026-06-12T08:53:47.011112] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"::1","port":"40545","related_address":"-","related_port":"-","candidate_len":93}
+I/flutter (30384): [2026-06-12T08:53:47.011754] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"host","protocol":"udp","address":"::1","port":"40545","related_address":"-","related_port":"-","candidate_len":93}
+I/flutter (30384): [2026-06-12T08:53:47.015771] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"85.95.176.238","port":"55749","related_address":"192.168.1.5","related_port":"55749","candidate_len":150}
+I/flutter (30384): [2026-06-12T08:53:47.020094] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=150, mid=0, mLine=0}
+I/flutter (30384): [2026-06-12T08:53:47.025850] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"tcp","address":"127.0.0.1","port":"53669","related_address":"-","related_port":"-","candidate_len":115}
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+D/FlutterWebRTCPlugin(30384): onIceCandidate
+I/flutter (30384): [2026-06-12T08:53:47.027139] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=115, mid=0, mLine=0}
+I/flutter (30384): [2026-06-12T08:53:47.029386] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","port":"46967","related_address":"2a00:1e88:316f:fc00:83c:316e:7bbd:f047","related_port":"46967","candidate_len":203}
+I/flutter (30384): [2026-06-12T08:53:47.029696] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"srflx","protocol":"udp","address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","port":"46967","related_address":"2a00:1e88:316f:fc00:83c:316e:7bbd:f047","related_port":"46967","candidate_len":203}
+I/flutter (30384): [2026-06-12T08:53:47.031242] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"host","protocol":"tcp","address":"::1","port":"44229","related_address":"-","related_port":"-","candidate_len":109}
+I/flutter (30384): [2026-06-12T08:53:47.031557] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"host","protocol":"tcp","address":"::1","port":"44229","related_address":"-","related_port":"-","candidate_len":109}
+I/flutter (30384): [2026-06-12T08:53:47.032993] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"89.125.200.192","port":"64466","related_address":"85.95.176.238","related_port":"55749","candidate_len":151}
+I/flutter (30384): [2026-06-12T08:53:47.033446] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=151, mid=0, mLine=0}
+I/flutter (30384): [2026-06-12T08:53:47.043985] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"2605:e440:50::1c1","port":"62361","related_address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","related_port":"46967","candidate_len":180}
+I/flutter (30384): [2026-06-12T08:53:47.044315] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"2605:e440:50::1c1","port":"62361","related_address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","related_port":"46967","candidate_len":180}
+I/flutter (30384): [2026-06-12T08:53:47.054953] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"89.125.200.192","port":"55989","related_address":"85.95.176.238","related_port":"34680","candidate_len":151}
+I/flutter (30384): [2026-06-12T08:53:47.055574] DBG WT | => sfu_ice_candidate | data={type=sfu_ice_candidate, room=019ea0a8-1d39-7436-a56c-976e14bc2e84, candidateLength=151, mid=0, mLine=0}
+I/flutter (30384): [2026-06-12T08:53:47.148931] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":19164,"ice":"RTCIceConnectionStateChecking","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateGathering","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"18","checks":"5/1","br":"-","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":47,"waiting":54},"types":"L{host: 12, relay: 7, srflx: 3} R{host: 8, srflx: 8, prflx: 4, relay: 4}","events":"L39/R14 relay L11/R4","audio":"out 44961/741 in 40344/554 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:47.149330] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":19164,"since_ice_ms":660,"since_pc_ms":9018,"since_gathering_ms":147,"ice":"RTCIceConnectionStateChecking","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateGathering","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":47,"waiting":54},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"5","selected_responses_received":"1","available_outgoing_bitrate":"-","local_candidate":"srflx udp 85.95.176.238 33593","remot
+I/flutter (30384): [chunk 2/2] e_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":12,"relay":7,"srflx":3},"remote_candidate_types":{"host":8,"srflx":8,"prflx":4,"relay":4},"local_candidate_events":39,"remote_candidate_events":14,"local_relay_events":11,"remote_relay_events":4,"out_audio_bytes":44961,"out_audio_packets":741,"in_audio_bytes":40344,"in_audio_packets":554,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:47.177100] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"gathering-RTCIceGatheringStateGathering","t":19193,"ice":"RTCIceConnectionStateChecking","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateGathering","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"18","checks":"5/1","br":"-","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":47,"waiting":54},"types":"L{host: 12, relay: 7, srflx: 3} R{host: 8, srflx: 8, prflx: 4, relay: 4}","events":"L39/R14 relay L11/R4","audio":"out 44961/741 in 40344/554 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:47.177412] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"gathering-RTCIceGatheringStateGathering","elapsed_ms":19193,"since_ice_ms":689,"since_pc_ms":9047,"since_gathering_ms":175,"ice":"RTCIceConnectionStateChecking","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateGathering","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":47,"waiting":54},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"5","selected_responses_received":"1","available_outgoing_bitrate":"-","local_candidate":"srflx 
+I/flutter (30384): [chunk 2/2] udp 85.95.176.238 33593","remote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":12,"relay":7,"srflx":3},"remote_candidate_types":{"host":8,"srflx":8,"prflx":4,"relay":4},"local_candidate_events":39,"remote_candidate_events":14,"local_relay_events":11,"remote_relay_events":4,"out_audio_bytes":44961,"out_audio_packets":741,"in_audio_bytes":40344,"in_audio_packets":554,"in_audio_lost":0}
+I/flutter (30384): [2026-06-12T08:53:47.179425] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | local ICE candidate gathered | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"2605:e440:50::1c1","port":"58208","related_address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","related_port":"35605","candidate_len":180}
+I/flutter (30384): [2026-06-12T08:53:47.179751] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | dropping local IPv6 ICE candidate | data={"mid":"0","mLine":0,"type":"relay","protocol":"udp","address":"2605:e440:50::1c1","port":"58208","related_address":"2a00:1e88:316f:fc00:dccc:fb76:8024:91aa","related_port":"35605","candidate_len":180}
+I/flutter (30384): [2026-06-12T08:53:48.092416] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline | data={"r":"periodic","t":20108,"ice":"RTCIceConnectionStateChecking","pc":"RTCPeerConnectionStateDisconnected","g":"RTCIceGatheringStateGathering","sig":"RTCSignalingStateStable","policy":"all","pair":"in-progress","wr":"false","nom":"true","rtt":"18","checks":"5/1","br":"-","local":"srflx udp 85.95.176.238 33593","remote":"srflx udp 185.71.196.242 46033","pairs":{"in-progress":52,"waiting":44},"types":"L{host: 12, relay: 8, srflx: 3} R{host: 6, srflx: 8, prflx: 8, relay: 4}","events":"L40/R14 relay L12/R4","audio":"out 44961/741 in 40344/554 lost 0"}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:48.093162] DBG SFU.019ea0a8-1d39-7436-a56c-976e14bc2e84 | ICE timeline full | data={"reason":"periodic","elapsed_ms":20108,"since_ice_ms":1605,"since_pc_ms":9962,"since_gathering_ms":1091,"ice":"RTCIceConnectionStateChecking","connection":"RTCPeerConnectionStateDisconnected","gathering":"RTCIceGatheringStateGathering","signaling":"RTCSignalingStateStable","ice_policy":"all","pair_states":{"in-progress":52,"waiting":44},"selected_pair":"in-progress","selected_writable":"false","selected_nominated":"true","selected_rtt_ms":"18","selected_requests_sent":"5","selected_responses_received":"1","available_outgoing_bitrate":"-","local_candidate":"srflx udp 85.95.176.238 33593","rem
+I/flutter (30384): [chunk 2/2] ote_candidate":"srflx udp 185.71.196.242 46033","local_candidate_types":{"host":12,"relay":8,"srflx":3},"remote_candidate_types":{"host":6,"srflx":8,"prflx":8,"relay":4},"local_candidate_events":40,"remote_candidate_events":14,"local_relay_events":12,"remote_relay_events":4,"out_audio_bytes":44961,"out_audio_packets":741,"in_audio_bytes":40344,"in_audio_packets":554,"in_audio_lost":0}
+I/MediaCodec(30384): setCodecState state : 0
+I/flutter (30384): [2026-06-12T08:53:48.564059] DBG WT | => sfu_leave | data={type=sfu_leave, keys=room_id,session_id}
+I/flutter (30384): [2026-06-12T08:53:48.633331] DBG WT | <= message | data={type=sfu_left, keys=room_id,scope}
+I/flutter (30384): [2026-06-12T08:53:48.633987] DBG ConnectionService | SFU <= sfu_left | data={"room_id":"019ea0a8-1d39-7436-a56c-976e14bc2e84","payload":"{room_id: 019ea0a8-1d39-7436-a56c-976e14bc2e84, scope: server}"}
+I/flutter (30384): [2026-06-12T08:53:48.634743] DBG ConnectionService | ignoring SFU message for closed session | data={"room_id":"019ea0a8-1d39-7436-a56c-976e14bc2e84","type":"sfu_left"}
+I/flutter (30384): [2026-06-12T08:53:48.637343] DBG WT | <= message | data={type=rtc_room_participants, keys=server_id,room_id,total,participants}
+I/flutter (30384): [chunk 1/2] [2026-06-12T08:53:48.638541] DBG ConnectionService | SFU <= rtc_room_participants | data={"room_id":"019ea0a8-1d39-7436-a56c-976e14bc2e84","payload":"{server_id: 019ea0a7-0dac-76f7-a94b-949aeeb7c195, room_id: 019ea0a8-1d39-7436-a56c-976e14bc2e84, total: 1, participants: [{user: {id: 019e9e8e-b8f3-7f20-90b2-c9410d947784, nickname: FL4G, avatar_url: null, bio: null, custom_status: , status: online, updated_at: 2026-06-12T05:28:33.528419Z, created_at: 2026-06-06T20:10:14.130791Z}, user_id: 019e9e8e-b8f3-7f20-90b2-c9410d947784, joined_at: 2026-06-12T08:28:36.569567451+03:00, connection_state: connected, track_ids: [019e9e8e-b8f3-7f20-90b2-c9410d947784:d3426249-382a-4680-813b-c20d297c4e4c], track
+I/flutter (30384): [chunk 2/2] _count: 1, online: true}]}"}
+I/flutter (30384): [2026-06-12T08:53:48.639684] DBG ConnectionService | ignoring SFU message for closed session | data={"room_id":"019ea0a8-1d39-7436-a56c-976e14bc2e84","type":"rtc_room_participants"}
