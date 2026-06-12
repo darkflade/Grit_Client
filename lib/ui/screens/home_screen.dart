@@ -1928,9 +1928,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    ValueListenableBuilder<String?>(
-                      valueListenable: sfu.selectedVideoInputId,
-                      builder: (context, selectedId, _) {
+	                    ValueListenableBuilder<String?>(
+	                      valueListenable: sfu.selectedVideoInputId,
+	                      builder: (context, selectedId, _) {
                         return _buildDeviceDropdown(
                           context,
                           icon: Icons.videocam_rounded,
@@ -1939,11 +1939,41 @@ class _HomeScreenState extends State<HomeScreen> {
                           devices: videoInputs,
                           onChanged: (id) => sfu.selectVideoInput(id),
                         );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Camera quality',
+	                      },
+	                    ),
+	                    const SizedBox(height: 16),
+	                    Text(
+	                      'Audio output',
+	                      style: Theme.of(context).textTheme.labelLarge,
+	                    ),
+	                    const SizedBox(height: 8),
+	                    ValueListenableBuilder<String>(
+	                      valueListenable: sfu.audioOutput,
+	                      builder: (context, output, _) {
+	                        return SegmentedButton<String>(
+	                          segments: const [
+	                            ButtonSegment<String>(
+	                              value: 'speaker',
+	                              label: Text('Speaker'),
+	                              icon: Icon(Icons.volume_up_rounded),
+	                            ),
+	                            ButtonSegment<String>(
+	                              value: 'earpiece',
+	                              label: Text('Earpiece'),
+	                              icon: Icon(Icons.phone_in_talk_rounded),
+	                            ),
+	                          ],
+	                          selected: {output},
+	                          showSelectedIcon: false,
+	                          onSelectionChanged: (selection) {
+	                            unawaited(sfu.setAudioOutput(selection.first));
+	                          },
+	                        );
+	                      },
+	                    ),
+	                    const SizedBox(height: 16),
+	                    Text(
+	                      'Camera quality',
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                     const SizedBox(height: 8),

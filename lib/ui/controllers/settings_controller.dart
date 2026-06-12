@@ -22,7 +22,8 @@ class SettingsController {
   final apiBaseUrl = ValueNotifier<String>(defaultApiBaseUrl);
   final customApiBaseUrls = ValueNotifier<List<String>>([]);
   final webRtcImplementation = ValueNotifier<String>('native');
-  final forceRelay = ValueNotifier<bool>(false);
+  final webRtcIceMode = ValueNotifier<String>('auto');
+  final callAudioOutput = ValueNotifier<String>('speaker');
   final downloadPath = ValueNotifier<String?>(null);
 
   String? _userId;
@@ -52,7 +53,8 @@ class SettingsController {
       customApiBaseUrls.value = normalizedCustomUrls.toList();
       webRtcImplementation.value =
           await storageService.getWebRtcImplementation() ?? 'native';
-      forceRelay.value = await storageService.getForceRelay();
+      webRtcIceMode.value = await storageService.getWebRtcIceMode();
+      callAudioOutput.value = await storageService.getCallAudioOutput();
       downloadPath.value = await storageService.getDownloadPath();
 
       try {
@@ -177,9 +179,14 @@ class SettingsController {
     webRtcImplementation.value = value;
   }
 
-  Future<void> updateForceRelay(bool value) async {
-    await storageService.saveForceRelay(value);
-    forceRelay.value = value;
+  Future<void> updateWebRtcIceMode(String value) async {
+    await storageService.saveWebRtcIceMode(value);
+    webRtcIceMode.value = value;
+  }
+
+  Future<void> updateCallAudioOutput(String value) async {
+    await storageService.saveCallAudioOutput(value);
+    callAudioOutput.value = value;
   }
 
   Future<void> updateDownloadPath(String? path) async {
@@ -196,7 +203,8 @@ class SettingsController {
     apiBaseUrl.dispose();
     customApiBaseUrls.dispose();
     webRtcImplementation.dispose();
-    forceRelay.dispose();
+    webRtcIceMode.dispose();
+    callAudioOutput.dispose();
     downloadPath.dispose();
     _wsSubscription?.cancel();
   }

@@ -14,9 +14,12 @@ class MessagePage {
   });
 
   factory MessagePage.fromJson(Map<String, dynamic> json) {
+    final rawMessages = json['messages'] ?? json['items'] ?? json['data'];
+    final messageList = rawMessages is List ? rawMessages : const [];
     return MessagePage(
-      messages: (json['messages'] as List)
-          .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
+      messages: messageList
+          .whereType<Map>()
+          .map((e) => ChatMessage.fromJson(Map<String, dynamic>.from(e)))
           .toList(),
       nextCursor: json['next_cursor'] as String?,
       hasMore: json['has_more'] as bool? ?? false,

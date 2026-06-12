@@ -18,6 +18,8 @@ class StorageService {
   static const String _customApiBaseUrlsKey = 'custom_api_base_urls';
   static const String _webRtcImplementationKey = 'webrtc_implementation';
   static const String _forceRelayKey = 'force_relay';
+  static const String _webRtcIceModeKey = 'webrtc_ice_mode';
+  static const String _callAudioOutputKey = 'call_audio_output';
   static const String _downloadPathKey = 'download_path';
 
   // Access Token
@@ -166,6 +168,31 @@ class StorageService {
   Future<bool> getForceRelay() async {
     final val = await _storage.read(key: _forceRelayKey);
     return val == 'true';
+  }
+
+  Future<void> saveWebRtcIceMode(String value) async {
+    await _storage.write(key: _webRtcIceModeKey, value: value);
+    await _storage.write(
+      key: _forceRelayKey,
+      value: (value == 'turnOnly').toString(),
+    );
+  }
+
+  Future<String> getWebRtcIceMode() async {
+    final mode = await _storage.read(key: _webRtcIceModeKey);
+    if (mode == 'auto' || mode == 'directOnly' || mode == 'turnOnly') {
+      return mode!;
+    }
+    return await getForceRelay() ? 'turnOnly' : 'auto';
+  }
+
+  Future<void> saveCallAudioOutput(String value) async {
+    await _storage.write(key: _callAudioOutputKey, value: value);
+  }
+
+  Future<String> getCallAudioOutput() async {
+    final value = await _storage.read(key: _callAudioOutputKey);
+    return value == 'earpiece' ? 'earpiece' : 'speaker';
   }
 
   // Downloads

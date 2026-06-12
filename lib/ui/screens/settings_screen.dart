@@ -37,7 +37,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _selectedTransport = 'websocket';
   String _selectedApiBaseUrl = defaultApiBaseUrl;
   String _selectedWebRtc = 'native';
-  bool _forceRelay = false;
+  String _selectedIceMode = 'auto';
+  String _selectedAudioOutput = 'speaker';
   String? _downloadPath;
 
   @override
@@ -55,7 +56,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _selectedTransport = _controller.transportMode.value;
       _selectedApiBaseUrl = _controller.apiBaseUrl.value;
       _selectedWebRtc = _controller.webRtcImplementation.value;
-      _forceRelay = _controller.forceRelay.value;
+      _selectedIceMode = _controller.webRtcIceMode.value;
+      _selectedAudioOutput = _controller.callAudioOutput.value;
       _downloadPath = _controller.downloadPath.value;
 
       if (user != null) {
@@ -183,174 +185,186 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-          // ---- Connection ----------------------------------------------------
-          _buildSectionHeader('Connection'),
-          _buildConnectionStatus(),
-          ValueListenableBuilder<String?>(
-            valueListenable: _controller.errorMessage,
-            builder: (context, error, _) {
-              if (error == null) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.md),
-                child: Text(
-                  error,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                // ---- Connection ----------------------------------------------------
+                _buildSectionHeader('Connection'),
+                _buildConnectionStatus(),
+                ValueListenableBuilder<String?>(
+                  valueListenable: _controller.errorMessage,
+                  builder: (context, error, _) {
+                    if (error == null) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.md),
+                      child: Text(
+                        error,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: AppSpacing.xxl),
+                const SizedBox(height: AppSpacing.xxl),
 
-          // ---- Profile -------------------------------------------------------
-          _buildSectionHeader('Profile'),
-          if (_controller.currentUser.value == null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              child: Text(
-                'Profile is unavailable offline.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          _buildCard([
-            _buildTextField('Nickname', _nicknameController),
-            const Divider(height: 1),
-            _buildTextField('Bio', _bioController, maxLines: 3),
-            const Divider(height: 1),
-            _buildDropdown(
-              'Status',
-              _selectedStatus,
-              ['online', 'offline', 'idle', 'dnd'],
-              (val) {
-                setState(() => _selectedStatus = val!);
-              },
-            ),
-          ]),
-          const SizedBox(height: AppSpacing.md),
-          AppButton(
-            label: 'Save Profile Changes',
-            fullWidth: true,
-            loading: _controller.isLoading.value,
-            onPressed: _save,
-          ),
-          const SizedBox(height: AppSpacing.xxl),
-
-          // ---- Appearance ----------------------------------------------------
-          _buildSectionHeader('Appearance'),
-          _buildCard([_buildThemeSelector()]),
-          const SizedBox(height: AppSpacing.xxl),
-
-          // ---- Network -------------------------------------------------------
-          _buildSectionHeader('Network'),
-          _buildCard([
-            _buildApiEndpointDropdown(),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.sm,
-                AppSpacing.lg,
-                AppSpacing.sm,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: AppTextField(
-                      controller: _customApiController,
-                      label: 'Custom API domain',
-                      hint: 'custom.api.diogen.space',
-                      filled: false,
-                      keyboardType: TextInputType.url,
+                // ---- Profile -------------------------------------------------------
+                _buildSectionHeader('Profile'),
+                if (_controller.currentUser.value == null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                    child: Text(
+                      'Profile is unavailable offline.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.md),
-                  AppButton(
-                    label: 'Add',
-                    variant: AppButtonVariant.secondary,
-                    onPressed: _addCustomApiEndpoint,
+                _buildCard([
+                  _buildTextField('Nickname', _nicknameController),
+                  const Divider(height: 1),
+                  _buildTextField('Bio', _bioController, maxLines: 3),
+                  const Divider(height: 1),
+                  _buildDropdown(
+                    'Status',
+                    _selectedStatus,
+                    ['online', 'offline', 'idle', 'dnd'],
+                    (val) {
+                      setState(() => _selectedStatus = val!);
+                    },
                   ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.dns_rounded),
-              title: const Text('Backend API'),
-              subtitle: Text(
-                'Current: ${_controller.apiBaseUrl.value}\nChanging backend clears local auth.',
-              ),
-              trailing: AppButton(
-                label: 'Apply',
-                onPressed: _selectedApiBaseUrl == _controller.apiBaseUrl.value
-                    ? null
-                    : _applyApiEndpoint,
-              ),
-            ),
-            const Divider(height: 1),
-            SwitchListTile(
-              secondary: const Icon(Icons.swap_horiz),
-              title: const Text('WebTransport'),
-              subtitle: Text(
-                _selectedTransport == 'webtransport'
-                    ? 'Active'
-                    : 'Using WebSocket',
-              ),
-              value: _selectedTransport == 'webtransport',
-              onChanged: (enabled) {
-                final mode = enabled ? 'webtransport' : 'websocket';
-                setState(() => _selectedTransport = mode);
-                unawaited(_controller.updateTransportMode(mode));
-              },
-            ),
-          ]),
-          const SizedBox(height: AppSpacing.xxl),
+                ]),
+                const SizedBox(height: AppSpacing.md),
+                AppButton(
+                  label: 'Save Profile Changes',
+                  fullWidth: true,
+                  loading: _controller.isLoading.value,
+                  onPressed: _save,
+                ),
+                const SizedBox(height: AppSpacing.xxl),
 
-          // ---- Media & Calls -------------------------------------------------
-          _buildSectionHeader('Media & Calls'),
-          _buildCard([
-            _buildDropdown(
-              'WebRTC Implementation',
-              _selectedWebRtc,
-              ['native', 'flutter'],
-              (val) {
-                if (val == null) return;
-                setState(() => _selectedWebRtc = val);
-                unawaited(_controller.updateWebRtcImplementation(val));
-              },
+                // ---- Appearance ----------------------------------------------------
+                _buildSectionHeader('Appearance'),
+                _buildCard([_buildThemeSelector()]),
+                const SizedBox(height: AppSpacing.xxl),
+
+                // ---- Network -------------------------------------------------------
+                _buildSectionHeader('Network'),
+                _buildCard([
+                  _buildApiEndpointDropdown(),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      AppSpacing.sm,
+                      AppSpacing.lg,
+                      AppSpacing.sm,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: AppTextField(
+                            controller: _customApiController,
+                            label: 'Custom API domain',
+                            hint: 'custom.api.diogen.space',
+                            filled: false,
+                            keyboardType: TextInputType.url,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        AppButton(
+                          label: 'Add',
+                          variant: AppButtonVariant.secondary,
+                          onPressed: _addCustomApiEndpoint,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.dns_rounded),
+                    title: const Text('Backend API'),
+                    subtitle: Text(
+                      'Current: ${_controller.apiBaseUrl.value}\nChanging backend clears local auth.',
+                    ),
+                    trailing: AppButton(
+                      label: 'Apply',
+                      onPressed:
+                          _selectedApiBaseUrl == _controller.apiBaseUrl.value
+                          ? null
+                          : _applyApiEndpoint,
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.swap_horiz),
+                    title: const Text('WebTransport'),
+                    subtitle: Text(
+                      _selectedTransport == 'webtransport'
+                          ? 'Active'
+                          : 'Using WebSocket',
+                    ),
+                    value: _selectedTransport == 'webtransport',
+                    onChanged: (enabled) {
+                      final mode = enabled ? 'webtransport' : 'websocket';
+                      setState(() => _selectedTransport = mode);
+                      unawaited(_controller.updateTransportMode(mode));
+                    },
+                  ),
+                ]),
+                const SizedBox(height: AppSpacing.xxl),
+
+                // ---- Media & Calls -------------------------------------------------
+                _buildSectionHeader('Media & Calls'),
+                _buildCard([
+                  _buildDropdown(
+                    'WebRTC Implementation',
+                    _selectedWebRtc,
+                    ['native', 'flutter'],
+                    (val) {
+                      if (val == null) return;
+                      setState(() => _selectedWebRtc = val);
+                      unawaited(_controller.updateWebRtcImplementation(val));
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _buildDropdown(
+                    'ICE Mode',
+                    _selectedIceMode,
+                    ['auto', 'directOnly', 'turnOnly'],
+                    (val) {
+                      if (val == null) return;
+                      setState(() => _selectedIceMode = val);
+                      unawaited(_controller.updateWebRtcIceMode(val));
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _buildDropdown(
+                    'Call Output',
+                    _selectedAudioOutput,
+                    ['speaker', 'earpiece'],
+                    (val) {
+                      if (val == null) return;
+                      setState(() => _selectedAudioOutput = val);
+                      unawaited(_controller.updateCallAudioOutput(val));
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.folder_open),
+                    title: const Text('Download Folder'),
+                    subtitle: Text(_downloadPath ?? 'Not set (using default)'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: _pickDownloadPath,
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: AppSpacing.xxxl),
+              ],
             ),
-            const Divider(height: 1),
-            SwitchListTile(
-              secondary: const Icon(Icons.security),
-              title: const Text('Force Relay (TURN)'),
-              subtitle: const Text('Prefer relay servers for calls'),
-              value: _forceRelay,
-              onChanged: (enabled) {
-                setState(() => _forceRelay = enabled);
-                unawaited(_controller.updateForceRelay(enabled));
-              },
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.folder_open),
-              title: const Text('Download Folder'),
-              subtitle: Text(_downloadPath ?? 'Not set (using default)'),
-              trailing: IconButton(
-                icon: const Icon(Icons.edit),
-                onPressed: _pickDownloadPath,
-              ),
-            ),
-          ]),
-          const SizedBox(height: AppSpacing.xxxl),
-            ],
           ),
         ),
       ),
-    ),
-  );
+    );
   }
 
   /// Light / Dark switch. Only these two modes are exposed; a legacy stored
@@ -361,10 +375,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              'Theme',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
+            child: Text('Theme', style: Theme.of(context).textTheme.bodyLarge),
           ),
           SegmentedButton<String>(
             segments: const [
@@ -443,12 +454,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         items: options
             .map(
-              (s) => DropdownMenuItem(value: s, child: Text(s.toUpperCase())),
+              (s) => DropdownMenuItem(value: s, child: Text(_optionLabel(s))),
             )
             .toList(),
         onChanged: onChanged,
       ),
     );
+  }
+
+  String _optionLabel(String value) {
+    return switch (value) {
+      'auto' => 'Auto',
+      'directOnly' => 'Direct only',
+      'turnOnly' => 'TURN only',
+      'speaker' => 'Speaker',
+      'earpiece' => 'Earpiece',
+      _ => value.toUpperCase(),
+    };
   }
 
   Widget _buildApiEndpointDropdown() {

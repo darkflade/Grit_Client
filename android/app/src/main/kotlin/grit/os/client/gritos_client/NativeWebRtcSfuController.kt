@@ -24,6 +24,7 @@ import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 import org.webrtc.audio.JavaAudioDeviceModule
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.roundToLong
 
 class NativeWebRtcSfuController(
     private val context: Context,
@@ -52,6 +53,27 @@ class NativeWebRtcSfuController(
     private var localCandidate: String? = null
     private var remoteCandidate: String? = null
     private var selectedPairState: String? = null
+    private var useCommunicationAudio = false
+    private var audioOutput = "speaker"
+    private var currentIcePolicy = "all"
+    private var createdAtMs = 0L
+    private var lastIceStateChangedAtMs = 0L
+    private var lastConnectionStateChangedAtMs = 0L
+    private var lastGatheringStateChangedAtMs = 0L
+    private var localCandidateCount = 0
+    private var remoteCandidateCount = 0
+    private var localRelayCandidateCount = 0
+    private var remoteRelayCandidateCount = 0
+    private var emittedRelayGatheringWarning = false
+    private var lastIceTimelineFingerprint: String? = null
+    private val iceTimelineRunnable = object : Runnable {
+        override fun run() {
+            emitIceTimeline("periodic")
+            if (peerConnection != null) {
+                mainHandler.postDelayed(this, 1000)
+            }
+        }
+    }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         runOnMain {
@@ -62,6 +84,7 @@ class NativeWebRtcSfuController(
                     "handleRemoteDescription" -> handleRemoteDescription(call, result)
                     "addIceCandidate" -> addIceCandidate(call.argument<Map<String, Any?>>("candidate"), result)
                     "setMuted" -> setMuted(call, result)
+                    "setAudioOutput" -> setAudioOutput(call, result)
                     "switchToRelay" -> switchToRelay(call, result)
                     "prepareForReconnect" -> {
                         prepareForReconnect()
@@ -86,6 +109,7 @@ class NativeWebRtcSfuController(
         hasRemoteDescription = false
         makingOffer = false
         relayFallbackUsed = false
+        stopIceTimeline()
         peerConnection?.close()
         peerConnection?.dispose()
         peerConnection = null
@@ -105,8 +129,20 @@ class NativeWebRtcSfuController(
         close()
         roomId = call.argument<String>("roomId") ?: ""
         val configuration = call.argument<Map<String, Any?>>("configuration") ?: emptyMap()
-        val useCommunicationAudio = call.argument<Boolean>("useCommunicationAudio") ?: false
-        ensureFactory(useCommunicationAudio)
+        useCommunicationAudio = call.argument<Boolean>("useCommunicationAudio") ?: false
+        audioOutput = call.argument<String>("audioOutput") ?: "speaker"
+        ensureFactory(useCommunicationAudio, audioOutput)
+        currentIcePolicy = configuration["iceTransportPolicy"] as? String ?: "all"
+        createdAtMs = nowMs()
+        lastIceStateChangedAtMs = createdAtMs
+        lastConnectionStateChangedAtMs = createdAtMs
+        lastGatheringStateChangedAtMs = createdAtMs
+        localCandidateCount = 0
+        remoteCandidateCount = 0
+        localRelayCandidateCount = 0
+        remoteRelayCandidateCount = 0
+        emittedRelayGatheringWarning = false
+        lastIceTimelineFingerprint = null
 
         val pc = requireNotNull(factory).createPeerConnection(
             parseRtcConfiguration(configuration),
@@ -145,6 +181,8 @@ class NativeWebRtcSfuController(
         // will add them on negotiation. Pre-allocating can cause track count mismatch.
 
         emit("onLog", mapOf("level" to "info", "message" to "native Android PeerConnection created"))
+        emit("onLog", iceConfigLogData(configuration))
+        startIceTimeline()
         result.success(null)
     }
 
@@ -280,6 +318,21 @@ class NativeWebRtcSfuController(
             (candidate["sdpMLineIndex"] as? Number)?.toInt() ?: 0,
             candidate["candidate"] as? String ?: "",
         )
+        val summary = summarizeCandidateSdp(ice.sdp)
+        remoteCandidateCount += 1
+        if (summary["type"] == "relay") {
+            remoteRelayCandidateCount += 1
+        }
+        emit(
+            "onLog",
+            mapOf(
+                "level" to "debug",
+                "message" to "native remote ICE candidate",
+                "elapsed_ms" to elapsedMs(),
+                "mid" to ice.sdpMid,
+                "mLine" to ice.sdpMLineIndex,
+            ) + summary,
+        )
         if (!hasRemoteDescription) {
             pendingRemoteCandidates.add(ice)
             emit("onLog", mapOf("level" to "debug", "message" to "native queued remote ICE candidate"))
@@ -314,6 +367,16 @@ class NativeWebRtcSfuController(
         result.success(null)
     }
 
+    private fun setAudioOutput(call: MethodCall, result: MethodChannel.Result) {
+        audioOutput = call.argument<String>("value") ?: "speaker"
+        configureAudioRoute(useCommunicationAudio, audioOutput)
+        emit(
+            "onLog",
+            mapOf("level" to "info", "message" to "native audio output changed", "audio_output" to audioOutput),
+        )
+        result.success(null)
+    }
+
     private fun switchToRelay(call: MethodCall, result: MethodChannel.Result) {
         val pc = peerConnection ?: run {
             result.error("missing_peer", "PeerConnection is not created", null)
@@ -321,6 +384,8 @@ class NativeWebRtcSfuController(
         }
         val configuration = call.argument<Map<String, Any?>>("configuration") ?: emptyMap()
         relayFallbackUsed = true
+        currentIcePolicy = "relay"
+        emittedRelayGatheringWarning = false
         pc.setConfiguration(parseRtcConfiguration(configuration + mapOf("iceTransportPolicy" to "relay")))
         pc.restartIce()
         emit("onIceRestartNeeded", mapOf("reason" to (call.argument<String>("reason") ?: "native-relay-fallback")))
@@ -433,24 +498,58 @@ class NativeWebRtcSfuController(
 
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState) {
                 lastIceState = iceConnectionStateString(state)
+                lastIceStateChangedAtMs = nowMs()
+                emitIceTimeline("ice-state-$lastIceState")
                 emit("onIceConnectionState", mapOf("state" to lastIceState))
             }
 
             override fun onConnectionChange(state: PeerConnection.PeerConnectionState) {
                 lastConnectionState = connectionStateString(state)
+                lastConnectionStateChangedAtMs = nowMs()
+                emitIceTimeline("pc-state-$lastConnectionState")
                 emit("onConnectionState", mapOf("state" to lastConnectionState))
             }
 
             override fun onIceGatheringChange(state: PeerConnection.IceGatheringState) {
                 lastGatheringState = iceGatheringStateString(state)
+                lastGatheringStateChangedAtMs = nowMs()
+                emitIceTimeline("gathering-$lastGatheringState")
                 emit("onIceGatheringState", mapOf("state" to lastGatheringState))
                 if (state == PeerConnection.IceGatheringState.COMPLETE) {
+                    if (currentIcePolicy == "relay" && localRelayCandidateCount == 0 && !emittedRelayGatheringWarning) {
+                        emittedRelayGatheringWarning = true
+                        emit(
+                            "onLog",
+                            mapOf(
+                                "level" to "warn",
+                                "message" to "native relay-only gathering completed without relay candidates",
+                                "elapsed_ms" to elapsedMs(),
+                                "local_candidates" to localCandidateCount,
+                                "remote_candidates" to remoteCandidateCount,
+                            ),
+                        )
+                    }
                     emit("onIceCandidate", null)
                 }
             }
 
             override fun onIceCandidate(candidate: IceCandidate) {
+                val summary = summarizeCandidateSdp(candidate.sdp)
+                localCandidateCount += 1
+                if (summary["type"] == "relay") {
+                    localRelayCandidateCount += 1
+                }
                 localCandidate = "mid:${candidate.sdpMid}, index:${candidate.sdpMLineIndex}, ${candidate.sdp.take(15)}..."
+                emit(
+                    "onLog",
+                    mapOf(
+                        "level" to "debug",
+                        "message" to "native local ICE candidate",
+                        "elapsed_ms" to elapsedMs(),
+                        "mid" to candidate.sdpMid,
+                        "mLine" to candidate.sdpMLineIndex,
+                    ) + summary,
+                )
                 emit(
                     "onIceCandidate",
                     mapOf(
@@ -477,6 +576,7 @@ class NativeWebRtcSfuController(
             }
 
             override fun onRenegotiationNeeded() {
+                emit("onLog", mapOf("level" to "debug", "message" to "native renegotiation needed", "elapsed_ms" to elapsedMs()))
                 emit("onRenegotiationNeeded", emptyMap<String, Any>())
             }
 
@@ -489,8 +589,8 @@ class NativeWebRtcSfuController(
         }
     }
 
-    private fun ensureFactory(useCommunicationAudio: Boolean) {
-        configureAudioRoute(useCommunicationAudio)
+    private fun ensureFactory(useCommunicationAudio: Boolean, audioOutput: String) {
+        configureAudioRoute(useCommunicationAudio, audioOutput)
         if (factory == null) {
             if (factoryInitialized.compareAndSet(false, true)) {
                 PeerConnectionFactory.initialize(
@@ -551,15 +651,215 @@ class NativeWebRtcSfuController(
         }
     }
 
-    private fun configureAudioRoute(useCommunicationAudio: Boolean) {
+    private fun startIceTimeline() {
+        mainHandler.removeCallbacks(iceTimelineRunnable)
+        mainHandler.postDelayed(iceTimelineRunnable, 1000)
+    }
+
+    private fun stopIceTimeline() {
+        mainHandler.removeCallbacks(iceTimelineRunnable)
+    }
+
+    private fun emitIceTimeline(reason: String) {
+        val pc = peerConnection ?: return
+        pc.getStats(object : RTCStatsCollectorCallback {
+            override fun onStatsDelivered(report: RTCStatsReport) {
+                val data = buildIceTimeline(reason, report)
+                val fingerprint = listOf(
+                    data["reason"],
+                    data["ice"],
+                    data["connection"],
+                    data["gathering"],
+                    data["selected_pair"],
+                    data["local_candidate"],
+                    data["remote_candidate"],
+                    data["pair_states"],
+                    data["local_candidate_types"],
+                    data["remote_candidate_types"],
+                    data["out_audio_bytes"],
+                    data["in_audio_bytes"],
+                ).joinToString("|")
+                if (fingerprint != lastIceTimelineFingerprint || reason != "periodic") {
+                    lastIceTimelineFingerprint = fingerprint
+                    emit("onLog", data)
+                }
+            }
+        })
+    }
+
+    private fun buildIceTimeline(reason: String, report: RTCStatsReport): Map<String, Any> {
+        val now = nowMs()
+        val candidateTypesById = mutableMapOf<String, String>()
+        val localCandidateTypeCounts = mutableMapOf<String, Int>()
+        val remoteCandidateTypeCounts = mutableMapOf<String, Int>()
+        val pairStateCounts = mutableMapOf<String, Int>()
+        var selectedLocalId: String? = null
+        var selectedRemoteId: String? = null
+        var selectedState = "-"
+        var selectedWritable = "-"
+        var selectedNominated = "-"
+        var selectedRttMs = "-"
+        var selectedRequestsSent = "-"
+        var selectedResponsesReceived = "-"
+        var availableOutgoingBitrate = "-"
+        var inboundAudioBytes = 0L
+        var outboundAudioBytes = 0L
+        var inboundAudioPackets = 0L
+        var outboundAudioPackets = 0L
+        var inboundAudioLost = 0L
+
+        for ((id, stats) in report.statsMap) {
+            val members = stats.members
+            when (stats.type) {
+                "local-candidate", "remote-candidate" -> {
+                    val candidateType = members["candidateType"]?.toString()
+                        ?: members["type"]?.toString()
+                        ?: "unknown"
+                    candidateTypesById[id] = candidateType
+                    val target = if (stats.type == "local-candidate") localCandidateTypeCounts else remoteCandidateTypeCounts
+                    target[candidateType] = (target[candidateType] ?: 0) + 1
+                }
+                "candidate-pair" -> {
+                    val state = members["state"]?.toString() ?: "unknown"
+                    pairStateCounts[state] = (pairStateCounts[state] ?: 0) + 1
+                    val selected = members["selected"] == true || members["nominated"] == true
+                    if (selected) {
+                        selectedState = state
+                        selectedLocalId = members["localCandidateId"] as? String
+                        selectedRemoteId = members["remoteCandidateId"] as? String
+                        selectedWritable = members["writable"]?.toString() ?: "-"
+                        selectedNominated = members["nominated"]?.toString() ?: "-"
+                        selectedRttMs = numberMs(members["currentRoundTripTime"] ?: members["totalRoundTripTime"])
+                        selectedRequestsSent = members["requestsSent"]?.toString() ?: "-"
+                        selectedResponsesReceived = members["responsesReceived"]?.toString() ?: "-"
+                        availableOutgoingBitrate = (members["availableOutgoingBitrate"] as? Number)
+                            ?.toDouble()
+                            ?.let { "${(it / 1000.0).roundToLong()} kbps" }
+                            ?: availableOutgoingBitrate
+                    }
+                }
+                "inbound-rtp" -> if (members["kind"] == "audio") {
+                    inboundAudioBytes += (members["bytesReceived"] as? Number)?.toLong() ?: 0L
+                    inboundAudioPackets += (members["packetsReceived"] as? Number)?.toLong() ?: 0L
+                    inboundAudioLost += (members["packetsLost"] as? Number)?.toLong() ?: 0L
+                }
+                "outbound-rtp" -> if (members["kind"] == "audio") {
+                    outboundAudioBytes += (members["bytesSent"] as? Number)?.toLong() ?: 0L
+                    outboundAudioPackets += (members["packetsSent"] as? Number)?.toLong() ?: 0L
+                }
+            }
+        }
+
+        val selectedLocal = selectedLocalId?.let { candidateSummary(report, it) } ?: "-"
+        val selectedRemote = selectedRemoteId?.let { candidateSummary(report, it) } ?: "-"
+        return mapOf(
+            "level" to "debug",
+            "message" to "native ICE timeline",
+            "reason" to reason,
+            "elapsed_ms" to (now - createdAtMs),
+            "since_ice_ms" to (now - lastIceStateChangedAtMs),
+            "since_pc_ms" to (now - lastConnectionStateChangedAtMs),
+            "since_gathering_ms" to (now - lastGatheringStateChangedAtMs),
+            "ice" to lastIceState,
+            "connection" to lastConnectionState,
+            "gathering" to lastGatheringState,
+            "signaling" to lastSignalingState,
+            "ice_policy" to currentIcePolicy,
+            "pair_states" to pairStateCounts,
+            "selected_pair" to selectedState,
+            "selected_writable" to selectedWritable,
+            "selected_nominated" to selectedNominated,
+            "selected_rtt_ms" to selectedRttMs,
+            "selected_requests_sent" to selectedRequestsSent,
+            "selected_responses_received" to selectedResponsesReceived,
+            "available_outgoing_bitrate" to availableOutgoingBitrate,
+            "local_candidate" to selectedLocal,
+            "remote_candidate" to selectedRemote,
+            "local_candidate_types" to localCandidateTypeCounts,
+            "remote_candidate_types" to remoteCandidateTypeCounts,
+            "local_candidate_events" to localCandidateCount,
+            "remote_candidate_events" to remoteCandidateCount,
+            "local_relay_events" to localRelayCandidateCount,
+            "remote_relay_events" to remoteRelayCandidateCount,
+            "out_audio_bytes" to outboundAudioBytes,
+            "out_audio_packets" to outboundAudioPackets,
+            "in_audio_bytes" to inboundAudioBytes,
+            "in_audio_packets" to inboundAudioPackets,
+            "in_audio_lost" to inboundAudioLost,
+        )
+    }
+
+    private fun candidateSummary(report: RTCStatsReport, id: String): String {
+        val stats = report.statsMap[id] ?: return id
+        val members = stats.members
+        val type = members["candidateType"] ?: members["type"] ?: "unknown"
+        val proto = members["protocol"] ?: "unknown"
+        val address = members["ip"] ?: members["address"] ?: "unknown"
+        val port = members["port"] ?: "unknown"
+        val url = members["url"]?.toString()?.takeIf { it.isNotBlank() }
+        return listOfNotNull(type, proto, "$address:$port", url).joinToString(" ")
+    }
+
+    private fun summarizeCandidateSdp(candidate: String): Map<String, Any> {
+        val parts = candidate.trim().split(Regex("\\s+"))
+        fun valueAfter(token: String): String? {
+            val index = parts.indexOf(token)
+            return if (index >= 0 && index + 1 < parts.size) parts[index + 1] else null
+        }
+        return mapOf(
+            "type" to (valueAfter("typ") ?: "-"),
+            "protocol" to (parts.getOrNull(2) ?: "-"),
+            "address" to (parts.getOrNull(4) ?: "-"),
+            "port" to (parts.getOrNull(5) ?: "-"),
+            "related_address" to (valueAfter("raddr") ?: "-"),
+            "related_port" to (valueAfter("rport") ?: "-"),
+            "candidate_len" to candidate.length,
+        )
+    }
+
+    private fun iceConfigLogData(configuration: Map<String, Any?>): Map<String, Any> {
+        val servers = configuration["iceServers"] as? List<*> ?: emptyList<Any>()
+        val summaries = servers.mapNotNull { raw ->
+            val server = raw as? Map<*, *> ?: return@mapNotNull null
+            val urls = when (val rawUrls = server["urls"]) {
+                is String -> listOf(rawUrls)
+                is List<*> -> rawUrls.filterIsInstance<String>()
+                else -> emptyList()
+            }
+            mapOf(
+                "urls" to urls,
+                "hasUsername" to ((server["username"] as? String)?.isNotBlank() == true),
+                "hasCredential" to ((server["credential"] as? String)?.isNotBlank() == true),
+            )
+        }
+        return mapOf(
+            "level" to "info",
+            "message" to "native RTC config",
+            "ice_policy" to currentIcePolicy,
+            "ice_servers" to summaries,
+        )
+    }
+
+    private fun numberMs(value: Any?): String {
+        val seconds = (value as? Number)?.toDouble() ?: return "-"
+        return "${(seconds * 1000.0).roundToLong()}"
+    }
+
+    private fun nowMs(): Long = System.currentTimeMillis()
+
+    private fun elapsedMs(): Long = if (createdAtMs == 0L) 0L else nowMs() - createdAtMs
+
+    private fun configureAudioRoute(useCommunicationAudio: Boolean, audioOutput: String) {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
-        audioManager.mode = if (useCommunicationAudio) AudioManager.MODE_IN_COMMUNICATION else AudioManager.MODE_NORMAL
-        audioManager.isSpeakerphoneOn = true
+        val useEarpiece = audioOutput == "earpiece"
+        val useVoiceStream = useCommunicationAudio || useEarpiece
+        audioManager.mode = if (useVoiceStream) AudioManager.MODE_IN_COMMUNICATION else AudioManager.MODE_NORMAL
+        audioManager.isSpeakerphoneOn = !useEarpiece
         
         // Ensure volume is up
         audioManager.setStreamVolume(
-            if (useCommunicationAudio) AudioManager.STREAM_VOICE_CALL else AudioManager.STREAM_MUSIC,
-            audioManager.getStreamMaxVolume(if (useCommunicationAudio) AudioManager.STREAM_VOICE_CALL else AudioManager.STREAM_MUSIC) / 2,
+            if (useVoiceStream) AudioManager.STREAM_VOICE_CALL else AudioManager.STREAM_MUSIC,
+            audioManager.getStreamMaxVolume(if (useVoiceStream) AudioManager.STREAM_VOICE_CALL else AudioManager.STREAM_MUSIC) / 2,
             0
         )
     }

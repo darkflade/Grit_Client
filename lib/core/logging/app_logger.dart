@@ -28,12 +28,24 @@ class AppLogger {
     _write(LogLevel.debug, message, data: data);
   }
 
+  void debugLong(String message, {Object? data}) {
+    _write(LogLevel.debug, message, data: data, truncateData: false);
+  }
+
   void info(String message, {Object? data}) {
     _write(LogLevel.info, message, data: data);
   }
 
+  void infoLong(String message, {Object? data}) {
+    _write(LogLevel.info, message, data: data, truncateData: false);
+  }
+
   void warn(String message, {Object? data}) {
     _write(LogLevel.warn, message, data: data);
+  }
+
+  void warnLong(String message, {Object? data}) {
+    _write(LogLevel.warn, message, data: data, truncateData: false);
   }
 
   void error(
@@ -59,18 +71,21 @@ class AppLogger {
     Object? data,
     Object? error,
     StackTrace? stackTrace,
+    bool truncateData = true,
   }) {
     final now = DateTime.now().toIso8601String();
     final buffer = StringBuffer('[$now] ${level.label} $scope | $message');
     if (data != null) {
-      buffer.write(' | data=${_formatData(data)}');
+      buffer.write(
+        ' | data=${truncateData ? _formatData(data) : _formatDataFull(data)}',
+      );
     }
     if (error != null) {
       buffer.write(' | error=$error');
     }
-    debugPrint(_colorize(level, buffer.toString()));
+    _printChunks(level, buffer.toString());
     if (stackTrace != null && level == LogLevel.error) {
-      debugPrint(_colorize(level, stackTrace.toString()));
+      _printChunks(level, stackTrace.toString());
     }
   }
 
@@ -93,6 +108,9 @@ class AppLogger {
       final type = decoded['type'];
       final data = decoded['data'];
       if (data is Map) {
+        if (type == 'error') {
+          return '{type=$type, code=${data['code']}, message=${_truncate(data['message'].toString(), maxLength: 160)}}';
+        }
         final roomId = data['room_id'];
         final nestedData = data['data'];
         if (nestedData is Map && nestedData['sdp'] is String) {
@@ -131,6 +149,32 @@ class AppLogger {
       return _truncate(jsonEncode(data));
     }
     return _truncate(data.toString());
+  }
+
+  static String _formatDataFull(Object data) {
+    if (data is Map || data is Iterable) {
+      return jsonEncode(data);
+    }
+    return data.toString();
+  }
+
+  static void _printChunks(LogLevel level, String line) {
+    const maxChunkLength = 700;
+    if (line.length <= maxChunkLength) {
+      debugPrint(_colorize(level, line));
+      return;
+    }
+
+    final total = (line.length / maxChunkLength).ceil();
+    for (var index = 0; index < total; index += 1) {
+      final start = index * maxChunkLength;
+      final end = start + maxChunkLength;
+      final chunk = line.substring(
+        start,
+        end > line.length ? line.length : end,
+      );
+      debugPrint(_colorize(level, '[chunk ${index + 1}/$total] $chunk'));
+    }
   }
 
   static String _truncate(String value, {int maxLength = 700}) {

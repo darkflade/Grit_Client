@@ -40,11 +40,13 @@ class AndroidNativeWebRtcSfuBridge {
   Future<void> create({
     required Map<String, dynamic> configuration,
     required bool useCommunicationAudio,
+    required String audioOutput,
   }) {
     return _channel.invokeMethod<void>('create', {
       'roomId': roomId,
       'configuration': configuration,
       'useCommunicationAudio': useCommunicationAudio,
+      'audioOutput': audioOutput,
     });
   }
 
@@ -73,6 +75,10 @@ class AndroidNativeWebRtcSfuBridge {
       'kind': kind,
       'muted': muted,
     });
+  }
+
+  Future<void> setAudioOutput(String value) {
+    return _channel.invokeMethod<void>('setAudioOutput', {'value': value});
   }
 
   Future<void> switchToRelay({

@@ -28,6 +28,7 @@ class ConnectionService {
   final Set<String> _subscribedServerIds = {};
   final Map<String, String> _joinedRooms = {};
   final Map<String, WebRtcSfuService> _sfuSessions = {};
+  final Set<String> _recentlyClosedSfuRooms = {};
 
   ConnectionService(this.eventTransport, {required this.apiClient});
 
@@ -125,7 +126,7 @@ class ConnectionService {
         final data = decoded['data'];
         if (data is Map) {
           if (!completer.isCompleted) {
-            completer.complete(Map<String, dynamic>.from(data));
+            completer.complete(_normalizeRtcConfig(data));
           }
         }
       } catch (e) {
@@ -153,6 +154,26 @@ class ConnectionService {
       timeout.cancel();
       await subscription.cancel();
     }
+  }
+
+  Map<String, dynamic> _normalizeRtcConfig(Map<dynamic, dynamic> data) {
+    final servers = data['ice_servers'] ?? data['iceServers'];
+    if (servers is! List) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    return {
+      'iceServers': servers
+          .whereType<Map>()
+          .map((server) => Map<String, dynamic>.from(server))
+          .toList(),
+      'iceTransportPolicy':
+          data['ice_transport_policy'] ?? data['iceTransportPolicy'] ?? 'all',
+      if (data['expires_at'] != null) 'expiresAt': data['expires_at'],
+      if (data['expiresAt'] != null) 'expiresAt': data['expiresAt'],
+      if (data['ttl_seconds'] != null) 'ttlSeconds': data['ttl_seconds'],
+      if (data['ttlSeconds'] != null) 'ttlSeconds': data['ttlSeconds'],
+    };
   }
 
   // Common commands abstracted
@@ -256,6 +277,7 @@ class ConnectionService {
     String? localUserId,
     bool useCommunicationAudio = false,
   }) async {
+    _recentlyClosedSfuRooms.remove(roomId);
     if (_sfuSessions.containsKey(roomId)) {
       return _sfuSessions[roomId]!;
     }
@@ -275,9 +297,17 @@ class ConnectionService {
 
   Future<void> leaveSfuRoom(String roomId, String sessionId) async {
     final sfu = _sfuSessions.remove(roomId);
+    _markSfuRoomClosed(roomId);
     final sid = sessionId.isNotEmpty ? sessionId : (sfu?.sessionId ?? "");
     eventTransport.sfuLeave(roomId, sid);
     await sfu?.dispose();
+  }
+
+  void _markSfuRoomClosed(String roomId) {
+    _recentlyClosedSfuRooms.add(roomId);
+    Timer(const Duration(seconds: 10), () {
+      _recentlyClosedSfuRooms.remove(roomId);
+    });
   }
 
   void _handleSfuSignaling(dynamic message) {
@@ -325,7 +355,20 @@ class ConnectionService {
 
       final sfu = _sfuSessions[roomId];
       if (sfu == null) {
-        _log.warn('no active SFU session', data: {'room_id': roomId});
+        if (type == 'sfu_active_speakers' || type == 'sfu_ice_candidate') {
+          return;
+        }
+        if (_recentlyClosedSfuRooms.contains(roomId)) {
+          _log.debug(
+            'ignoring SFU message for closed session',
+            data: {'room_id': roomId, 'type': type},
+          );
+        } else {
+          _log.warn(
+            'no active SFU session',
+            data: {'room_id': roomId, 'type': type},
+          );
+        }
         return;
       }
 

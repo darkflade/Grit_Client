@@ -69,6 +69,7 @@ class HomeController {
   Timer? _sfuRecoveryTimer;
   StreamSubscription? _sfuStateSubscription;
   bool _disposed = false;
+  int _sfuGeneration = 0;
   String? get currentUserId => _userId;
   bool get activeSfuIsDirectCall => _activeCallIsDirect;
 
@@ -752,6 +753,7 @@ class HomeController {
 
     // Leave previous if any (optional, maybe support multi-room later?)
     await leaveSfu();
+    final generation = ++_sfuGeneration;
 
     _activeCallIsDirect = isDirectCall;
     // We only send direct_call_start if WE are initiating the call.
@@ -763,6 +765,10 @@ class HomeController {
       localUserId: _userId,
       useCommunicationAudio: isDirectCall,
     );
+    if (_disposed || generation != _sfuGeneration) {
+      await connectionService.leaveSfuRoom(roomId, sfu.sessionId ?? "");
+      return;
+    }
     activeSfuService.value = sfu;
     _watchSfuState(sfu);
   }
@@ -779,14 +785,16 @@ class HomeController {
 
   void _scheduleSfuRecovery(String roomId) {
     if (_sfuRecoveryTimer != null) return;
+    final generation = _sfuGeneration;
     _sfuRecoveryTimer = Timer(const Duration(seconds: 1), () {
       _sfuRecoveryTimer = null;
-      unawaited(_recoverSfuSession(roomId));
+      unawaited(_recoverSfuSession(roomId, generation));
     });
   }
 
-  Future<void> _recoverSfuSession(String roomId) async {
+  Future<void> _recoverSfuSession(String roomId, int generation) async {
     if (_disposed) return;
+    if (generation != _sfuGeneration) return;
     final failedSfu = activeSfuService.value;
     if (failedSfu == null || failedSfu.roomId != roomId) return;
 
@@ -797,13 +805,13 @@ class HomeController {
 
     try {
       await connectionService.leaveSfuRoom(roomId, failedSfu.sessionId ?? "");
-      if (_disposed) return;
+      if (_disposed || generation != _sfuGeneration) return;
       final nextSfu = await connectionService.joinSfuRoom(
         roomId,
         localUserId: _userId,
         useCommunicationAudio: _activeCallIsDirect,
       );
-      if (_disposed) {
+      if (_disposed || generation != _sfuGeneration) {
         await connectionService.leaveSfuRoom(roomId, nextSfu.sessionId ?? "");
         return;
       }
@@ -858,6 +866,7 @@ class HomeController {
   }
 
   Future<void> leaveSfu() async {
+    _sfuGeneration++;
     final sfu = activeSfuService.value;
     if (sfu != null) {
       final roomId = sfu.roomId;
@@ -895,6 +904,7 @@ class HomeController {
   }
 
   void _stopSfuSession(String roomId) {
+    _sfuGeneration++;
     final sfu = activeSfuService.value;
     _sfuRecoveryTimer?.cancel();
     _sfuRecoveryTimer = null;
