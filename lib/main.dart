@@ -14,12 +14,14 @@ import 'package:gritos_client/ui/screens/home_screen.dart';
 import 'package:gritos_client/ui/screens/friends_screen.dart';
 import 'package:gritos_client/ui/screens/settings_screen.dart';
 import 'package:gritos_client/ui/theme/app_theme.dart';
+import 'package:gritos_client/ui/widgets/common/app_toast.dart';
 
 /// Holds the currently selected theme mode name ('light' or 'dark').
 ///
 /// Legacy 'amoled' values persisted by older builds are mapped to 'dark' on
 /// read so saved settings keep working after the design-system migration.
 final themeNotifier = ValueNotifier<String>('light');
+final _rootMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 /// Normalizes a stored theme name to a value the current theme system knows.
 /// 'amoled' is temporarily mapped onto 'dark' to avoid breaking saved prefs.
@@ -139,10 +141,22 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    apiClient.onRequestError = (error) {
+      final messenger = _rootMessengerKey.currentState;
+      final toastContext = _rootMessengerKey.currentContext;
+      if (messenger == null || toastContext == null) return;
+      AppToast.showWithMessenger(
+        messenger,
+        context: toastContext,
+        message: error.message,
+        statusCode: error.statusCode,
+      );
+    };
     return ValueListenableBuilder<String>(
       valueListenable: themeNotifier,
       builder: (context, currentTheme, _) {
         return MaterialApp(
+          scaffoldMessengerKey: _rootMessengerKey,
           title: 'Gritos Client',
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
@@ -187,4 +201,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-

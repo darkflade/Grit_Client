@@ -3,8 +3,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:pasteboard/pasteboard.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
 import '../controllers/home_controller.dart';
 import '../../features/calls/application/webrtc_sfu_service.dart';
 import '../../data/api/rest.dart';
@@ -70,16 +74,16 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       if (Platform.isAndroid) {
         if (await Permission.manageExternalStorage.isRestricted) {
-           // On some devices this might be restricted, fallback to basic
-           await Permission.storage.request();
+          // On some devices this might be restricted, fallback to basic
+          await Permission.storage.request();
         } else {
-           var status = await Permission.manageExternalStorage.status;
-           if (!status.isGranted) {
-             status = await Permission.manageExternalStorage.request();
-           }
-           if (!status.isGranted) {
-             await Permission.storage.request();
-           }
+          var status = await Permission.manageExternalStorage.status;
+          if (!status.isGranted) {
+            status = await Permission.manageExternalStorage.request();
+          }
+          if (!status.isGranted) {
+            await Permission.storage.request();
+          }
         }
       }
 
@@ -202,114 +206,118 @@ class _HomeScreenState extends State<HomeScreen> {
         // and drop the Drawer; below that we keep the mobile Drawer flow.
         final isWide = constraints.maxWidth >= 700;
         return Scaffold(
-      appBar: AppBar(
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Theme.of(context).colorScheme.primary.withValues(alpha: 0.18),
-                Theme.of(context).colorScheme.secondary.withValues(alpha: 0.08),
-                Theme.of(context).colorScheme.surface,
-              ],
-            ),
-          ),
-        ),
-        title: AnimatedBuilder(
-          animation: Listenable.merge([
-            _controller.activeSfuService,
-            _controller.isDirectChat,
-            _controller.currentServer,
-            _controller.currentRoom,
-            _controller.currentDirectRoom,
-          ]),
-          builder: (context, _) {
-            final sfu = _controller.activeSfuService.value;
-            final isDirect = _controller.isDirectChat.value;
-            final title = isDirect
-                ? _controller.currentDirectRoom.value?.getDisplayName(
-                        _controller.currentUserId ?? "",
-                      ) ??
-                      'Direct Message'
-                : _controller.currentRoom.value?.name ??
-                      _controller.currentServer.value?.name ??
-                      'Gritos';
-            final subtitle = sfu == null
-                ? (isDirect
-                      ? 'Direct chat'
-                      : (_controller.currentRoom.value == null
-                            ? 'Server overview'
-                            : 'Messages and rooms'))
-                : 'WebRTC ${_webrtcLabel(sfu.connectionStateListenable.value)}';
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(title, overflow: TextOverflow.ellipsis),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(
+          appBar: AppBar(
+            flexibleSpace: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Theme.of(
                       context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.68),
-                  ),
+                    ).colorScheme.primary.withValues(alpha: 0.18),
+                    Theme.of(
+                      context,
+                    ).colorScheme.secondary.withValues(alpha: 0.08),
+                    Theme.of(context).colorScheme.surface,
+                  ],
                 ),
-              ],
-            );
-          },
-        ),
-        actions: [
-          AnimatedBuilder(
-            animation: Listenable.merge([
-              _controller.isDirectChat,
-              _controller.currentDirectRoom,
-              _controller.currentRoom,
-            ]),
-            builder: (context, _) {
-              final isDirect = _controller.isDirectChat.value;
-              if (isDirect && _controller.currentDirectRoom.value != null) {
-                return IconButton(
-                  icon: const Icon(Icons.call_rounded),
-                  onPressed: () {
-                    final dRoom = _controller.currentDirectRoom.value!;
-                    final otherUserId = dRoom.userIds.firstWhere(
-                      (id) => id != _controller.currentUserId,
-                      orElse: () => "",
+              ),
+            ),
+            title: AnimatedBuilder(
+              animation: Listenable.merge([
+                _controller.activeSfuService,
+                _controller.isDirectChat,
+                _controller.currentServer,
+                _controller.currentRoom,
+                _controller.currentDirectRoom,
+              ]),
+              builder: (context, _) {
+                final sfu = _controller.activeSfuService.value;
+                final isDirect = _controller.isDirectChat.value;
+                final title = isDirect
+                    ? _controller.currentDirectRoom.value?.getDisplayName(
+                            _controller.currentUserId ?? "",
+                          ) ??
+                          'Direct Message'
+                    : _controller.currentRoom.value?.name ??
+                          _controller.currentServer.value?.name ??
+                          'Gritos';
+                final subtitle = sfu == null
+                    ? (isDirect
+                          ? 'Direct chat'
+                          : (_controller.currentRoom.value == null
+                                ? 'Server overview'
+                                : 'Messages and rooms'))
+                    : 'WebRTC ${_webrtcLabel(sfu.connectionStateListenable.value)}';
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(title, overflow: TextOverflow.ellipsis),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.68),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+            actions: [
+              AnimatedBuilder(
+                animation: Listenable.merge([
+                  _controller.isDirectChat,
+                  _controller.currentDirectRoom,
+                  _controller.currentRoom,
+                ]),
+                builder: (context, _) {
+                  final isDirect = _controller.isDirectChat.value;
+                  if (isDirect && _controller.currentDirectRoom.value != null) {
+                    return IconButton(
+                      icon: const Icon(Icons.call_rounded),
+                      onPressed: () {
+                        final dRoom = _controller.currentDirectRoom.value!;
+                        final otherUserId = dRoom.userIds.firstWhere(
+                          (id) => id != _controller.currentUserId,
+                          orElse: () => "",
+                        );
+                        if (otherUserId.isNotEmpty) {
+                          _controller.callFriend(otherUserId);
+                        }
+                      },
                     );
-                    if (otherUserId.isNotEmpty) {
-                      _controller.callFriend(otherUserId);
-                    }
-                  },
-                );
-              }
-              final currentRoom = _controller.currentRoom.value;
-              if (!isDirect && currentRoom?.type == 'rtc') {
-                return IconButton(
-                  icon: const Icon(Icons.video_call_rounded),
-                  onPressed: () => _controller.joinSfuRoom(currentRoom!.id),
-                );
-              }
-              return const SizedBox.shrink();
-            },
+                  }
+                  final currentRoom = _controller.currentRoom.value;
+                  if (!isDirect && currentRoom?.type == 'rtc') {
+                    return IconButton(
+                      icon: const Icon(Icons.video_call_rounded),
+                      onPressed: () => _controller.joinSfuRoom(currentRoom!.id),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.settings_rounded),
+                onPressed: () {
+                  if (mounted) Navigator.pushNamed(context, '/settings');
+                },
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.settings_rounded),
-            onPressed: () {
-              if (mounted) Navigator.pushNamed(context, '/settings');
-            },
-          ),
-        ],
-      ),
-      drawer: isWide ? null : _buildDrawer(inDrawer: true),
-      body: isWide
-          ? Row(
-              children: [
-                _buildSideNavigation(),
-                Expanded(child: _buildBodyStack()),
-              ],
-            )
-          : _buildBodyStack(),
+          drawer: isWide ? null : _buildDrawer(inDrawer: true),
+          body: isWide
+              ? Row(
+                  children: [
+                    _buildSideNavigation(),
+                    Expanded(child: _buildBodyStack()),
+                  ],
+                )
+              : _buildBodyStack(),
         );
       },
     );
@@ -661,6 +669,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+            _buildRemoteVideoStrip(sfu),
             ValueListenableBuilder<Map<String, Map<String, dynamic>>>(
               valueListenable: sfu.participants,
               builder: (context, participants, _) {
@@ -752,6 +761,43 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildRemoteVideoStrip(WebRtcSfuService sfu) {
+    return ValueListenableBuilder<List<RemoteVideoTrack>>(
+      valueListenable: sfu.remoteVideoTracks,
+      builder: (context, tracks, _) {
+        if (tracks.isEmpty) return const SizedBox.shrink();
+        return ValueListenableBuilder<Set<String>>(
+          valueListenable: sfu.activeSpeakers,
+          builder: (context, speakers, _) {
+            return SizedBox(
+              height: 132,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                itemCount: tracks.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final track = tracks[index];
+                  unawaited(_controller.ensureUser(track.userId));
+                  return ValueListenableBuilder<int>(
+                    valueListenable: _controller.nicknameVersion,
+                    builder: (context, _, child) {
+                      return _RemoteVideoTile(
+                        track: track,
+                        label: _controller.getNickname(track.userId),
+                        isSpeaking: speakers.contains(track.userId),
+                      );
+                    },
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildTypingIndicator() {
     return ValueListenableBuilder<Set<String>>(
       valueListenable: _controller.typingUsers,
@@ -833,75 +879,198 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildDrawerHeader() {
-    return UserAccountsDrawerHeader(
-      accountName: ValueListenableBuilder(
-        valueListenable: _controller.currentUser,
-        builder: (_, user, _) => Text(
-          user?.nickname ?? 'Loading...',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontWeight: FontWeight.bold,
+    return ValueListenableBuilder<User?>(
+      valueListenable: _controller.currentUser,
+      builder: (context, user, _) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(18, 22, 12, 18),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHigh,
           ),
-        ),
-      ),
-      accountEmail: ValueListenableBuilder(
-        valueListenable: _controller.currentUser,
-        builder: (_, user, _) => Row(
-          children: [
-            StatusDot(
-              status: user?.status ?? "",
-              size: 10,
-              ringColor: Theme.of(context).colorScheme.surface,
-              ringWidth: 1,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              user?.status.toUpperCase() ?? "",
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-      currentAccountPicture: ValueListenableBuilder<User?>(
-        valueListenable: _controller.currentUser,
-        builder: (context, user, _) {
-          if (user?.avatarUrl != null) {
-            return FutureBuilder<Uint8List?>(
-              future: widget.apiClient.getFileBytes(user!.avatarUrl!),
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data != null) {
-                  return CircleAvatar(
-                    backgroundImage: MemoryImage(snapshot.data!),
-                  );
-                }
-                return CircleAvatar(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: Icon(
-                    Icons.person,
-                    size: 40,
-                    color: Theme.of(context).colorScheme.onPrimary,
+          child: SafeArea(
+            bottom: false,
+            child: Row(
+              children: [
+                _buildCurrentUserAvatar(user, radius: 28),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user?.nickname ?? 'Loading...',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          StatusDot(
+                            status: user?.status ?? "",
+                            size: 10,
+                            ringColor: Theme.of(context).colorScheme.surface,
+                            ringWidth: 1,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              user?.status.toUpperCase() ?? "",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                );
-              },
+                ),
+                IconButton(
+                  tooltip: 'Edit profile',
+                  icon: const Icon(Icons.edit_rounded),
+                  onPressed: user == null
+                      ? null
+                      : () => _showEditProfileSheet(user),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCurrentUserAvatar(User? user, {required double radius}) {
+    if (user?.avatarUrl != null && user!.avatarUrl!.isNotEmpty) {
+      return FutureBuilder<Uint8List?>(
+        future: widget.apiClient.getFileBytes(user.avatarUrl!),
+        builder: (context, snapshot) {
+          if (snapshot.hasData && snapshot.data != null) {
+            return CircleAvatar(
+              radius: radius,
+              backgroundImage: MemoryImage(snapshot.data!),
             );
           }
-          return CircleAvatar(
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            child: Icon(
-              Icons.person,
-              size: 40,
-              color: Theme.of(context).colorScheme.onPrimary,
-            ),
-          );
+          return _defaultUserAvatar(radius: radius);
         },
-      ),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHigh,
-      ),
+      );
+    }
+    return _defaultUserAvatar(radius: radius);
+  }
+
+  Future<void> _showEditProfileSheet(User user) async {
+    final nicknameController = TextEditingController(text: user.nickname);
+    final bioController = TextEditingController(text: user.bio ?? '');
+    const statuses = ['online', 'idle', 'dnd', 'offline'];
+    var selectedStatus = statuses.contains(user.status)
+        ? user.status
+        : 'online';
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                  AppSpacing.lg,
+                  MediaQuery.of(context).viewInsets.bottom + AppSpacing.lg,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Edit profile',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    TextField(
+                      controller: nicknameController,
+                      decoration: const InputDecoration(labelText: 'Nickname'),
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    TextField(
+                      controller: bioController,
+                      decoration: const InputDecoration(labelText: 'Bio'),
+                      minLines: 2,
+                      maxLines: 4,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedStatus,
+                      decoration: const InputDecoration(labelText: 'Status'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'online',
+                          child: Text('Online'),
+                        ),
+                        DropdownMenuItem(value: 'idle', child: Text('Idle')),
+                        DropdownMenuItem(
+                          value: 'dnd',
+                          child: Text('Do not disturb'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'offline',
+                          child: Text('Offline'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setSheetState(() => selectedStatus = value);
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: FilledButton.icon(
+                            icon: const Icon(Icons.save_rounded),
+                            label: const Text('Save'),
+                            onPressed: () async {
+                              await _controller.updateProfile(
+                                nickname: nicknameController.text.trim(),
+                                bio: bioController.text.trim(),
+                                status: selectedStatus,
+                              );
+                              if (context.mounted) Navigator.pop(context);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
+    nicknameController.dispose();
+    bioController.dispose();
   }
 
   Widget _buildServersList(bool inDrawer) {
@@ -1189,8 +1358,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildParticipantTile(ServerParticipant participant) {
     final user = participant.user;
+    final isSelf = user.id == _controller.currentUserId;
     return ListTile(
       contentPadding: EdgeInsets.zero,
+      onTap: () => _showParticipantActions(participant),
       leading: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -1220,21 +1391,75 @@ class _HomeScreenState extends State<HomeScreen> {
           PopupMenuButton<String>(
             tooltip: 'Member actions',
             icon: const Icon(Icons.more_vert_rounded),
-            onSelected: (value) {
-              if (value == 'role') {
-                _showMemberRoleDialog(participant);
-              } else if (value == 'remove') {
-                _confirmRemoveMember(participant);
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'role', child: Text('Change role')),
-              PopupMenuItem(value: 'remove', child: Text('Remove member')),
+            onSelected: (value) => _handleParticipantAction(value, participant),
+            itemBuilder: (context) => [
+              if (!isSelf)
+                const PopupMenuItem(value: 'friend', child: Text('Add friend')),
+              const PopupMenuItem(value: 'role', child: Text('Change role')),
+              const PopupMenuItem(
+                value: 'remove',
+                child: Text('Remove member'),
+              ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  void _handleParticipantAction(String value, ServerParticipant participant) {
+    if (value == 'friend') {
+      unawaited(_controller.sendFriendRequest(participant.user.id));
+    } else if (value == 'role') {
+      _showMemberRoleDialog(participant);
+    } else if (value == 'remove') {
+      _confirmRemoveMember(participant);
+    }
+  }
+
+  Future<void> _showParticipantActions(ServerParticipant participant) async {
+    final isSelf = participant.user.id == _controller.currentUserId;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: _buildUserAvatar(participant.user, radius: 18),
+              title: Text(participant.user.nickname),
+              subtitle: Text(participant.member.role),
+            ),
+            if (!isSelf)
+              ListTile(
+                leading: const Icon(Icons.person_add_alt_1_rounded),
+                title: const Text('Add friend'),
+                onTap: () => Navigator.pop(context, 'friend'),
+              ),
+            ListTile(
+              leading: const Icon(Icons.admin_panel_settings_rounded),
+              title: const Text('Change role'),
+              onTap: () => Navigator.pop(context, 'role'),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.person_remove_rounded,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
+                'Remove member',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              onTap: () => Navigator.pop(context, 'remove'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action != null && mounted) {
+      _handleParticipantAction(action, participant);
+    }
   }
 
   Future<void> _showCreateServerDialog() async {
@@ -1637,10 +1862,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return ValueListenableBuilder<List<ChatMessage>>(
       valueListenable: _controller.pinnedMessages,
       builder: (context, pins, _) {
-        return PinnedMessagesBar(
-          pinned: pins,
-          onTap: _showMessageActions,
-        );
+        return PinnedMessagesBar(pinned: pins, onTap: _showMessageActions);
       },
     );
   }
@@ -1797,16 +2019,134 @@ class _HomeScreenState extends State<HomeScreen> {
     return MessageInputBar(
       controller: _messageTextController,
       onSend: _send,
-      onAttach: () async {
-        final text = _messageTextController.text;
-        await _controller.pickAndSendFile(text);
-        if (mounted && text.isNotEmpty) {
-          _messageTextController.clear();
-          _controller.sendTypingIndicator(false);
-        }
-      },
+      onAttach: _showAttachmentSheet,
       onChanged: (val) => _controller.sendTypingIndicator(val.isNotEmpty),
     );
+  }
+
+  Future<void> _showAttachmentSheet() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.attach_file_rounded),
+              title: const Text('Attach file'),
+              onTap: () => Navigator.pop(context, 'file'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.content_paste_rounded),
+              title: const Text('Paste image'),
+              onTap: () => Navigator.pop(context, 'paste_image'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.pop(context, 'photo'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.videocam_rounded),
+              title: const Text('Record video'),
+              onTap: () => Navigator.pop(context, 'video'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.mic_rounded),
+              title: const Text('Record audio'),
+              onTap: () => Navigator.pop(context, 'audio'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case 'file':
+        await _sendPickedFile();
+        break;
+      case 'paste_image':
+        await _pasteImageAttachment();
+        break;
+      case 'photo':
+        await _capturePhotoAttachment();
+        break;
+      case 'video':
+        await _captureVideoAttachment();
+        break;
+      case 'audio':
+        await _recordAudioAttachment();
+        break;
+    }
+  }
+
+  Future<void> _sendPickedFile() async {
+    final text = _messageTextController.text;
+    await _controller.pickAndSendFile(text);
+    _clearComposerAfterAttachment(text);
+  }
+
+  Future<void> _capturePhotoAttachment() async {
+    final file = await ImagePicker().pickImage(source: ImageSource.camera);
+    if (file == null) return;
+    await _sendLocalAttachment(File(file.path));
+  }
+
+  Future<void> _captureVideoAttachment() async {
+    final file = await ImagePicker().pickVideo(
+      source: ImageSource.camera,
+      maxDuration: const Duration(minutes: 5),
+    );
+    if (file == null) return;
+    await _sendLocalAttachment(File(file.path));
+  }
+
+  Future<void> _pasteImageAttachment() async {
+    final bytes = await Pasteboard.image;
+    if (bytes == null || bytes.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Clipboard has no image'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final dir = await getTemporaryDirectory();
+    final file = File(
+      p.join(
+        dir.path,
+        'clipboard-${DateTime.now().millisecondsSinceEpoch}.png',
+      ),
+    );
+    await file.writeAsBytes(bytes, flush: true);
+    await _sendLocalAttachment(file);
+  }
+
+  Future<void> _recordAudioAttachment() async {
+    final file = await showModalBottomSheet<File>(
+      context: context,
+      showDragHandle: true,
+      isDismissible: false,
+      builder: (context) => const _AudioRecorderSheet(),
+    );
+    if (file == null) return;
+    await _sendLocalAttachment(file);
+  }
+
+  Future<void> _sendLocalAttachment(File file) async {
+    final text = _messageTextController.text;
+    await _controller.sendLocalFile(file, text);
+    _clearComposerAfterAttachment(text);
+  }
+
+  void _clearComposerAfterAttachment(String text) {
+    if (!mounted || text.isEmpty) return;
+    _messageTextController.clear();
+    _controller.sendTypingIndicator(false);
   }
 
   Widget _buildInfoChip(
@@ -1928,9 +2268,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     ),
                     const SizedBox(height: 12),
-	                    ValueListenableBuilder<String?>(
-	                      valueListenable: sfu.selectedVideoInputId,
-	                      builder: (context, selectedId, _) {
+                    ValueListenableBuilder<String?>(
+                      valueListenable: sfu.selectedVideoInputId,
+                      builder: (context, selectedId, _) {
                         return _buildDeviceDropdown(
                           context,
                           icon: Icons.videocam_rounded,
@@ -1939,41 +2279,41 @@ class _HomeScreenState extends State<HomeScreen> {
                           devices: videoInputs,
                           onChanged: (id) => sfu.selectVideoInput(id),
                         );
-	                      },
-	                    ),
-	                    const SizedBox(height: 16),
-	                    Text(
-	                      'Audio output',
-	                      style: Theme.of(context).textTheme.labelLarge,
-	                    ),
-	                    const SizedBox(height: 8),
-	                    ValueListenableBuilder<String>(
-	                      valueListenable: sfu.audioOutput,
-	                      builder: (context, output, _) {
-	                        return SegmentedButton<String>(
-	                          segments: const [
-	                            ButtonSegment<String>(
-	                              value: 'speaker',
-	                              label: Text('Speaker'),
-	                              icon: Icon(Icons.volume_up_rounded),
-	                            ),
-	                            ButtonSegment<String>(
-	                              value: 'earpiece',
-	                              label: Text('Earpiece'),
-	                              icon: Icon(Icons.phone_in_talk_rounded),
-	                            ),
-	                          ],
-	                          selected: {output},
-	                          showSelectedIcon: false,
-	                          onSelectionChanged: (selection) {
-	                            unawaited(sfu.setAudioOutput(selection.first));
-	                          },
-	                        );
-	                      },
-	                    ),
-	                    const SizedBox(height: 16),
-	                    Text(
-	                      'Camera quality',
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Audio output',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    ValueListenableBuilder<String>(
+                      valueListenable: sfu.audioOutput,
+                      builder: (context, output, _) {
+                        return SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment<String>(
+                              value: 'speaker',
+                              label: Text('Speaker'),
+                              icon: Icon(Icons.volume_up_rounded),
+                            ),
+                            ButtonSegment<String>(
+                              value: 'earpiece',
+                              label: Text('Earpiece'),
+                              icon: Icon(Icons.phone_in_talk_rounded),
+                            ),
+                          ],
+                          selected: {output},
+                          showSelectedIcon: false,
+                          onSelectionChanged: (selection) {
+                            unawaited(sfu.setAudioOutput(selection.first));
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Camera quality',
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                     const SizedBox(height: 8),
@@ -2176,5 +2516,304 @@ class _HomeScreenState extends State<HomeScreen> {
       _messageTextController.clear();
       _controller.sendTypingIndicator(false);
     }
+  }
+}
+
+class _AudioRecorderSheet extends StatefulWidget {
+  const _AudioRecorderSheet();
+
+  @override
+  State<_AudioRecorderSheet> createState() => _AudioRecorderSheetState();
+}
+
+class _AudioRecorderSheetState extends State<_AudioRecorderSheet> {
+  final AudioRecorder _recorder = AudioRecorder();
+  Timer? _timer;
+  Duration _elapsed = Duration.zero;
+  bool _recording = false;
+  bool _busy = false;
+  String? _path;
+  String? _error;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    if (_recording) {
+      unawaited(_recorder.cancel());
+    }
+    unawaited(_recorder.dispose());
+    super.dispose();
+  }
+
+  Future<void> _start() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final allowed = await _recorder.hasPermission();
+      if (!allowed) {
+        setState(() => _error = 'Microphone permission denied');
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      _path = p.join(
+        dir.path,
+        'voice-${DateTime.now().millisecondsSinceEpoch}.m4a',
+      );
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 96000,
+          sampleRate: 44100,
+          numChannels: 1,
+          echoCancel: true,
+          noiseSuppress: true,
+        ),
+        path: _path!,
+      );
+      _timer?.cancel();
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) {
+          setState(() => _elapsed += const Duration(seconds: 1));
+        }
+      });
+      setState(() {
+        _recording = true;
+        _elapsed = Duration.zero;
+      });
+    } catch (e) {
+      setState(() => _error = 'Failed to start recording: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _stop() async {
+    setState(() => _busy = true);
+    try {
+      final path = await _recorder.stop();
+      _timer?.cancel();
+      if (!mounted) return;
+      if (path == null) {
+        setState(() {
+          _recording = false;
+          _error = 'Recording was not saved';
+        });
+        return;
+      }
+      Navigator.pop(context, File(path));
+    } catch (e) {
+      setState(() => _error = 'Failed to stop recording: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _cancel() async {
+    if (_recording) {
+      await _recorder.cancel();
+    }
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _recording ? Icons.mic_rounded : Icons.mic_none_rounded,
+              size: 40,
+              color: _recording ? scheme.error : scheme.primary,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _formatDuration(_elapsed),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: scheme.error),
+              ),
+            ],
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _busy ? null : _cancel,
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _busy
+                        ? null
+                        : _recording
+                        ? _stop
+                        : _start,
+                    icon: Icon(
+                      _recording
+                          ? Icons.stop_rounded
+                          : Icons.fiber_manual_record,
+                    ),
+                    label: Text(_recording ? 'Stop' : 'Start'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _formatDuration(Duration duration) {
+  final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+  final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+  final hours = duration.inHours;
+  if (hours > 0) {
+    return '$hours:$minutes:$seconds';
+  }
+  return '$minutes:$seconds';
+}
+
+class _RemoteVideoTile extends StatefulWidget {
+  final RemoteVideoTrack track;
+  final String label;
+  final bool isSpeaking;
+
+  const _RemoteVideoTile({
+    required this.track,
+    required this.label,
+    required this.isSpeaking,
+  });
+
+  @override
+  State<_RemoteVideoTile> createState() => _RemoteVideoTileState();
+}
+
+class _RemoteVideoTileState extends State<_RemoteVideoTile> {
+  final RTCVideoRenderer _renderer = RTCVideoRenderer();
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_initialize());
+  }
+
+  @override
+  void didUpdateWidget(covariant _RemoteVideoTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.track.stream.id != widget.track.stream.id ||
+        oldWidget.track.trackId != widget.track.trackId) {
+      _renderer.srcObject = widget.track.stream;
+    }
+  }
+
+  Future<void> _initialize() async {
+    await _renderer.initialize();
+    if (!mounted) return;
+    _renderer.srcObject = widget.track.stream;
+    setState(() => _ready = true);
+  }
+
+  @override
+  void dispose() {
+    _renderer.srcObject = null;
+    unawaited(_renderer.dispose());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: 172,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: widget.isSpeaking
+              ? context.appColors.success
+              : colorScheme.outlineVariant,
+          width: widget.isSpeaking ? 2 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (_ready)
+            RTCVideoView(
+              _renderer,
+              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+            )
+          else
+            Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colorScheme.scrim.withValues(alpha: 0.55),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      widget.isSpeaking
+                          ? Icons.graphic_eq_rounded
+                          : Icons.videocam_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

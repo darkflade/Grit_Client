@@ -346,7 +346,14 @@ class ConnectionService {
         return;
       }
 
-      if (type != 'sfu_active_speakers' && type != 'sfu_ice_candidate') {
+      const loggedSfuTypes = {
+        'sfu_joined',
+        'sfu_offer',
+        'sfu_answer',
+        'sfu_left',
+      };
+
+      if (loggedSfuTypes.contains(type)) {
         _log.debug(
           'SFU <= $type',
           data: {'room_id': roomId, 'payload': _summarizeSfuData(data)},

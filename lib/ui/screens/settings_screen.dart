@@ -29,10 +29,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late SettingsController _controller;
-  final _nicknameController = TextEditingController();
-  final _bioController = TextEditingController();
   final _customApiController = TextEditingController();
-  String _selectedStatus = 'online';
   String _selectedTheme = 'light';
   String _selectedTransport = 'websocket';
   String _selectedApiBaseUrl = defaultApiBaseUrl;
@@ -52,27 +49,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       widget.connectionService,
     );
     _controller.initialize().then((_) {
-      final user = _controller.currentUser.value;
       _selectedTransport = _controller.transportMode.value;
       _selectedApiBaseUrl = _controller.apiBaseUrl.value;
       _selectedWebRtc = _controller.webRtcImplementation.value;
       _selectedIceMode = _controller.webRtcIceMode.value;
       _selectedAudioOutput = _controller.callAudioOutput.value;
       _downloadPath = _controller.downloadPath.value;
-
-      if (user != null) {
-        _nicknameController.text = user.nickname;
-        _bioController.text = user.bio ?? "";
-        _selectedStatus = user.status;
-      }
       if (mounted) setState(() {});
     });
   }
 
   @override
   void dispose() {
-    _nicknameController.dispose();
-    _bioController.dispose();
     _customApiController.dispose();
     _controller.dispose();
     super.dispose();
@@ -146,22 +134,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _save() async {
-    final success = await _controller.updateProfile(
-      nickname: _nicknameController.text,
-      bio: _bioController.text,
-      status: _selectedStatus,
-    );
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile updated!'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -202,41 +174,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     );
                   },
-                ),
-                const SizedBox(height: AppSpacing.xxl),
-
-                // ---- Profile -------------------------------------------------------
-                _buildSectionHeader('Profile'),
-                if (_controller.currentUser.value == null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                    child: Text(
-                      'Profile is unavailable offline.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                _buildCard([
-                  _buildTextField('Nickname', _nicknameController),
-                  const Divider(height: 1),
-                  _buildTextField('Bio', _bioController, maxLines: 3),
-                  const Divider(height: 1),
-                  _buildDropdown(
-                    'Status',
-                    _selectedStatus,
-                    ['online', 'offline', 'idle', 'dnd'],
-                    (val) {
-                      setState(() => _selectedStatus = val!);
-                    },
-                  ),
-                ]),
-                const SizedBox(height: AppSpacing.md),
-                AppButton(
-                  label: 'Save Profile Changes',
-                  fullWidth: true,
-                  loading: _controller.isLoading.value,
-                  onPressed: _save,
                 ),
                 const SizedBox(height: AppSpacing.xxl),
 
@@ -415,25 +352,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: EdgeInsets.zero,
       clipContent: true,
       child: Column(children: children),
-    );
-  }
-
-  Widget _buildTextField(
-    String label,
-    TextEditingController controller, {
-    int maxLines = 1,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      child: AppTextField(
-        controller: controller,
-        label: label,
-        maxLines: maxLines,
-        filled: false,
-      ),
     );
   }
 

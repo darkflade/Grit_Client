@@ -209,6 +209,40 @@ class HomeController {
     }
   }
 
+  Future<void> sendFriendRequest(String userId) async {
+    if (userId == _userId) return;
+    try {
+      await apiClient.createFriendRequest(userId);
+      showMessageCallback("Friend request sent.");
+    } catch (e) {
+      showMessageCallback("Failed to send friend request: $e");
+    }
+  }
+
+  Future<void> updateProfile({
+    required String nickname,
+    required String bio,
+    required String status,
+  }) async {
+    try {
+      final updated = await apiClient.updateProfile({
+        'nickname': nickname,
+        'bio': bio,
+        'status': status,
+      });
+      if (updated == null) {
+        showMessageCallback("Failed to update profile.");
+        return;
+      }
+      currentUser.value = updated;
+      userCache[updated.id] = updated;
+      nicknameVersion.value++;
+      showMessageCallback("Profile updated.");
+    } catch (e) {
+      showMessageCallback("Failed to update profile: $e");
+    }
+  }
+
   Future<void> resolveUsers(List<ChatMessage> msgs) async {
     bool updated = false;
     for (var msg in msgs) {
@@ -556,60 +590,65 @@ class HomeController {
 
     FilePickerResult? result = await FilePicker.platform.pickFiles();
     if (result != null && result.files.single.path != null) {
-      File file = File(result.files.single.path!);
-
-      // Optimistic UI: Add a local message showing we are uploading
-      final tempId = "local-upload-${DateTime.now().millisecondsSinceEpoch}";
-      final roomId = isDirectChat.value
-          ? currentDirectRoom.value!.id
-          : currentRoom.value!.id;
-      final fileName = file.path.split('/').last;
-
-      final tempMsg = ChatMessage(
-        id: tempId,
-        roomId: roomId,
-        senderId: _userId ?? "",
-        content: currentText.trim().isNotEmpty ? currentText : fileName,
-        type: "file",
-        status: "sending",
-        createdAt: DateTime.now(),
-      );
-      chatMessages.value = [tempMsg, ...chatMessages.value];
-      _sortMessages();
-
-      try {
-        final attachment = await apiClient.uploadFile("attachments", file);
-        if (attachment != null) {
-          final content = currentText.trim().isNotEmpty
-              ? currentText
-              : attachment.originalName;
-
-          bool isImg = false;
-          final ext = attachment.originalName.toLowerCase().split('.').last;
-          if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].contains(ext)) {
-            isImg = true;
-          }
-
-          // Remove the temp message before sending the real one
-          chatMessages.value = chatMessages.value
-              .where((m) => m.id != tempId)
-              .toList();
-
-          await sendMessage(
-            content,
-            attachmentIds: [attachment.id],
-            type: isImg ? "image" : "file",
-            mediaUrl: attachment.url,
-          );
-        } else {
-          _markMessageError(tempId);
-        }
-      } catch (e) {
-        debugPrint("Upload failed: $e");
-        _markMessageError(tempId);
-        showMessageCallback("Upload failed: $e");
-      }
+      await sendLocalFile(File(result.files.single.path!), currentText);
     }
+  }
+
+  Future<void> sendLocalFile(File file, String currentText) async {
+    if (currentRoom.value == null && currentDirectRoom.value == null) return;
+    if (_userId == null) return;
+
+    final tempId = "local-upload-${DateTime.now().millisecondsSinceEpoch}";
+    final roomId = isDirectChat.value
+        ? currentDirectRoom.value!.id
+        : currentRoom.value!.id;
+    final fileName = file.path.split('/').last;
+
+    final tempMsg = ChatMessage(
+      id: tempId,
+      roomId: roomId,
+      senderId: _userId ?? "",
+      content: currentText.trim().isNotEmpty ? currentText : fileName,
+      type: _messageTypeForFile(fileName),
+      status: "sending",
+      createdAt: DateTime.now(),
+    );
+    chatMessages.value = [tempMsg, ...chatMessages.value];
+    _sortMessages();
+
+    try {
+      final attachment = await apiClient.uploadFile("attachments", file);
+      if (attachment != null) {
+        final content = currentText.trim().isNotEmpty
+            ? currentText
+            : attachment.originalName;
+
+        chatMessages.value = chatMessages.value
+            .where((m) => m.id != tempId)
+            .toList();
+
+        await sendMessage(
+          content,
+          attachmentIds: [attachment.id],
+          type: _messageTypeForFile(attachment.originalName),
+          mediaUrl: attachment.url,
+        );
+      } else {
+        _markMessageError(tempId);
+      }
+    } catch (e) {
+      debugPrint("Upload failed: $e");
+      _markMessageError(tempId);
+      showMessageCallback("Upload failed: $e");
+    }
+  }
+
+  String _messageTypeForFile(String fileName) {
+    final ext = fileName.toLowerCase().split('.').last;
+    if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].contains(ext)) {
+      return "image";
+    }
+    return "file";
   }
 
   void _markMessageError(String id) {

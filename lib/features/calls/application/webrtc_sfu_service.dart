@@ -32,6 +32,22 @@ class RtcDebugSnapshot {
   RtcDebugSnapshot({required this.capturedAt, required this.values});
 }
 
+class RemoteVideoTrack {
+  final String userId;
+  final String trackId;
+  final MediaStream stream;
+  final MediaStreamTrack track;
+  final bool ownsStream;
+
+  const RemoteVideoTrack({
+    required this.userId,
+    required this.trackId,
+    required this.stream,
+    required this.track,
+    required this.ownsStream,
+  });
+}
+
 class WebRtcSfuService {
   static Map<String, dynamic>? _cachedRtcConfiguration;
   static DateTime? _cachedRtcConfigurationExpiresAt;
@@ -89,6 +105,10 @@ class WebRtcSfuService {
   final _remoteAudioTrackCount = ValueNotifier<int>(0);
   ValueListenable<int> get remoteAudioTrackCount => _remoteAudioTrackCount;
   final Map<String, MediaStreamTrack> _remoteAudioTracksById = {};
+  final _remoteVideoTracks = ValueNotifier<List<RemoteVideoTrack>>([]);
+  ValueListenable<List<RemoteVideoTrack>> get remoteVideoTracks =>
+      _remoteVideoTracks;
+  final Map<String, RemoteVideoTrack> _remoteVideoTracksById = {};
   final Set<String> _seenRemoteTrackIds = <String>{};
   final Set<String> _expectedRemoteTrackIds = <String>{};
   bool _hasRtcParticipantSnapshot = false;
@@ -99,20 +119,9 @@ class WebRtcSfuService {
       RTCIceGatheringState.RTCIceGatheringStateNew;
   RTCSignalingState _signalingState = RTCSignalingState.RTCSignalingStateStable;
   Timer? _inboundStatsTimer;
-  Timer? _iceDebugTimer;
   DateTime? _connectedAt;
   DateTime? _noInboundSince;
-  DateTime? _iceDebugStartedAt;
-  DateTime? _iceStateChangedAt;
-  DateTime? _peerStateChangedAt;
-  DateTime? _gatheringStateChangedAt;
   int? _lastInboundBytes;
-  int _localIceCandidateEvents = 0;
-  int _remoteIceCandidateEvents = 0;
-  int _localRelayIceCandidateEvents = 0;
-  int _remoteRelayIceCandidateEvents = 0;
-  String? _lastIceDebugFingerprint;
-  bool _emittedRelayGatheringWarning = false;
   bool _relayFallbackInFlight = false;
   bool _relayFallbackUsed = false;
   Timer? _negotiationRetryTimer;
@@ -182,7 +191,6 @@ class WebRtcSfuService {
     }
 
     _peerConnection = await createPeerConnection(configuration);
-    _startIceDebugTimeline();
     await _configureMobileAudio();
     _log.info('peer connection created', data: configuration);
 
@@ -193,12 +201,10 @@ class WebRtcSfuService {
 
     _peerConnection!.onIceGatheringState = (RTCIceGatheringState state) {
       _iceGatheringState = state;
-      _gatheringStateChangedAt = DateTime.now();
       _log.debug(
         'ICE gathering state changed',
         data: {'state': state.toString()},
       );
-      unawaited(_logIceDebugSnapshot('gathering-${state.name}', force: true));
     };
 
     // Get local media
@@ -229,16 +235,6 @@ class WebRtcSfuService {
 
     _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
       final rawCandidate = candidate.candidate;
-      if (rawCandidate == null || rawCandidate.isEmpty) {
-        _log.debug('local ICE end-of-candidates');
-      } else {
-        _localIceCandidateEvents += 1;
-        final summary = _iceCandidateLogData(candidate);
-        if (summary['type'] == 'relay') {
-          _localRelayIceCandidateEvents += 1;
-        }
-        _log.debug('local ICE candidate gathered', data: summary);
-      }
       transport.sfuSendIceCandidate(
         roomId,
         rawCandidate == null ? null : candidate.toMap(),
@@ -247,12 +243,10 @@ class WebRtcSfuService {
 
     _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
       _iceConnectionState = state;
-      _iceStateChangedAt = DateTime.now();
       _log.info(
         'ICE connection state changed',
         data: {'state': state.toString()},
       );
-      unawaited(_logIceDebugSnapshot('ice-${state.name}', force: true));
       _iceRestartController.handleState(
         state,
         requestRestart: (reason) => restartIce(reason),
@@ -260,12 +254,10 @@ class WebRtcSfuService {
     };
 
     _peerConnection!.onConnectionState = (RTCPeerConnectionState state) {
-      _peerStateChangedAt = DateTime.now();
       _log.info(
         'peer connection state changed',
         data: {'state': state.toString()},
       );
-      unawaited(_logIceDebugSnapshot('pc-${state.name}', force: true));
       if (_disposed) return;
       _connectionStateValue.value = state;
       _connectionStateController.add(state);
@@ -284,50 +276,23 @@ class WebRtcSfuService {
     };
 
     _peerConnection!.onTrack = (RTCTrackEvent event) async {
-      final trackKind = event.track.kind;
-      _log.info(
-        'remote track received',
-        data: {
-          'kind': trackKind,
-          'track_id': event.track.id,
-          'stream_ids': event.streams.map((s) => s.id).toList(),
-        },
-      );
-      final trackId = event.track.id;
-      if (trackId != null) {
-        _seenRemoteTrackIds.add(trackId);
+      try {
+        await _handleRemoteTrackEvent(event);
+      } catch (e, stackTrace) {
+        _log.error(
+          'remote track handling failed',
+          error: e,
+          data: {
+            'kind': event.track.kind,
+            'track_id': event.track.id,
+            'stack': stackTrace.toString(),
+          },
+        );
       }
-      if (trackKind == 'audio') {
-        event.track.enabled = true;
-        if (trackId != null) {
-          if (_expectedRemoteTrackIds.isNotEmpty &&
-              !_expectedRemoteTrackIds.contains(trackId)) {
-            _log.debug(
-              'ignoring stale remote audio track',
-              data: {'track_id': trackId},
-            );
-            await _stopTrackQuietly(event.track);
-            return;
-          }
-          final previousTrack = _remoteAudioTracksById[trackId];
-          if (previousTrack != null && previousTrack != event.track) {
-            await _stopTrackQuietly(previousTrack);
-          }
-          _remoteAudioTracksById[trackId] = event.track;
-          event.track.onEnded = () => _removeRemoteAudioTrack(trackId);
-        }
-        _syncRemoteAudioTrackCount();
-        try {
-          await Helper.setVolume(1.0, event.track);
-        } catch (e) {
-          _log.warn('failed to set remote audio volume', data: e.toString());
-        }
-      }
-      _onTrackController.add(event);
     };
 
-    _peerConnection!.onRenegotiationNeeded = () async {
-      await _negotiate("renegotiation-needed");
+    _peerConnection!.onRenegotiationNeeded = () {
+      unawaited(_handleRenegotiationNeeded());
     };
 
     await _configureMobileAudio();
@@ -363,7 +328,16 @@ class WebRtcSfuService {
       onSignalingState: _handleNativeSignalingState,
       onRemoteTrack: _handleNativeRemoteTrack,
       onIceRestartNeeded: restartIce,
-      onRenegotiationNeeded: (reason) => native.startOffer(reason),
+      onRenegotiationNeeded: (reason) {
+        if (_hasRemoteDescription) {
+          _log.debug(
+            'ignoring native renegotiation-needed after SFU negotiation started',
+            data: {'reason': reason},
+          );
+          return;
+        }
+        native.startOffer(reason);
+      },
     );
     _nativeAndroid = native;
     await native.create(
@@ -741,238 +715,6 @@ class WebRtcSfuService {
     _inboundStatsTimer = null;
   }
 
-  void _startIceDebugTimeline() {
-    final now = DateTime.now();
-    _iceDebugStartedAt = now;
-    _iceStateChangedAt = now;
-    _peerStateChangedAt = now;
-    _gatheringStateChangedAt = now;
-    _lastIceDebugFingerprint = null;
-    _localIceCandidateEvents = 0;
-    _remoteIceCandidateEvents = 0;
-    _localRelayIceCandidateEvents = 0;
-    _remoteRelayIceCandidateEvents = 0;
-    _emittedRelayGatheringWarning = false;
-    _iceDebugTimer?.cancel();
-    _iceDebugTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      unawaited(_logIceDebugSnapshot('periodic'));
-    });
-    unawaited(_logIceDebugSnapshot('start', force: true));
-  }
-
-  void _stopIceDebugTimeline() {
-    _iceDebugTimer?.cancel();
-    _iceDebugTimer = null;
-  }
-
-  Future<void> _logIceDebugSnapshot(String reason, {bool force = false}) async {
-    final peerConnection = _peerConnection;
-    if (_disposed || peerConnection == null) return;
-
-    try {
-      final reports = await peerConnection.getStats().timeout(
-        const Duration(seconds: 2),
-      );
-      final data = _buildIceDebugSnapshot(reason, reports);
-      final fingerprint = [
-        data['reason'],
-        data['ice'],
-        data['connection'],
-        data['gathering'],
-        data['selected_pair'],
-        data['local_candidate'],
-        data['remote_candidate'],
-        data['pair_states'],
-        data['local_candidate_types'],
-        data['remote_candidate_types'],
-        data['out_audio_bytes'],
-        data['in_audio_bytes'],
-      ].join('|');
-      if (force || fingerprint != _lastIceDebugFingerprint) {
-        _lastIceDebugFingerprint = fingerprint;
-        _log.debug('ICE timeline', data: _compactIceDebugSnapshot(data));
-        _log.debugLong('ICE timeline full', data: data);
-      }
-    } catch (e) {
-      if (force) {
-        _log.warn('failed to inspect ICE timeline', data: '$e');
-      }
-    }
-  }
-
-  Map<String, dynamic> _buildIceDebugSnapshot(
-    String reason,
-    Iterable<StatsReport> reports,
-  ) {
-    final now = DateTime.now();
-    final startedAt = _iceDebugStartedAt ?? now;
-    final iceChangedAt = _iceStateChangedAt ?? startedAt;
-    final peerChangedAt = _peerStateChangedAt ?? startedAt;
-    final gatheringChangedAt = _gatheringStateChangedAt ?? startedAt;
-    final reportsById = {for (final report in reports) report.id: report};
-    final pairStates = <String, int>{};
-    final localCandidateTypes = <String, int>{};
-    final remoteCandidateTypes = <String, int>{};
-    var inboundAudioBytes = 0;
-    var inboundAudioPackets = 0;
-    var inboundAudioLost = 0;
-    var outboundAudioBytes = 0;
-    var outboundAudioPackets = 0;
-    String? selectedPairState;
-    String? selectedWritable;
-    String? selectedNominated;
-    String? selectedRttMs;
-    String? selectedRequestsSent;
-    String? selectedResponsesReceived;
-    String? availableOutgoingBitrate;
-    String? localCandidate;
-    String? remoteCandidate;
-
-    for (final report in reports) {
-      final values = Map<String, dynamic>.from(report.values);
-      switch (report.type) {
-        case 'local-candidate':
-        case 'remote-candidate':
-          final type =
-              values['candidateType']?.toString() ??
-              values['candidate_type']?.toString() ??
-              values['type']?.toString() ??
-              'unknown';
-          final target = report.type == 'local-candidate'
-              ? localCandidateTypes
-              : remoteCandidateTypes;
-          target[type] = (target[type] ?? 0) + 1;
-          break;
-        case 'candidate-pair':
-          final state = values['state']?.toString() ?? 'unknown';
-          pairStates[state] = (pairStates[state] ?? 0) + 1;
-          if (values['selected'] == true || values['nominated'] == true) {
-            selectedPairState = state;
-            selectedWritable = values['writable']?.toString();
-            selectedNominated = values['nominated']?.toString();
-            selectedRttMs = _formatMillis(
-              _doubleStat(values['currentRoundTripTime']) ??
-                  _doubleStat(values['totalRoundTripTime']),
-            );
-            selectedRequestsSent = values['requestsSent']?.toString();
-            selectedResponsesReceived = values['responsesReceived']?.toString();
-            final bitrate = _doubleStat(values['availableOutgoingBitrate']);
-            if (bitrate != null) {
-              availableOutgoingBitrate =
-                  '${(bitrate / 1000).toStringAsFixed(0)} kbps';
-            }
-            localCandidate = _candidateSummary(
-              _reportValues(
-                reportsById[values['localCandidateId']?.toString()],
-              ),
-            );
-            remoteCandidate = _candidateSummary(
-              _reportValues(
-                reportsById[values['remoteCandidateId']?.toString()],
-              ),
-            );
-          }
-          break;
-        case 'inbound-rtp':
-          if (values['kind']?.toString() == 'audio' ||
-              values['mediaType']?.toString() == 'audio') {
-            inboundAudioBytes += _intStat(values['bytesReceived']);
-            inboundAudioPackets += _intStat(values['packetsReceived']);
-            inboundAudioLost += _intStat(values['packetsLost']);
-          }
-          break;
-        case 'outbound-rtp':
-          if (values['kind']?.toString() == 'audio' ||
-              values['mediaType']?.toString() == 'audio') {
-            outboundAudioBytes += _intStat(values['bytesSent']);
-            outboundAudioPackets += _intStat(values['packetsSent']);
-          }
-          break;
-      }
-    }
-
-    final data = <String, dynamic>{
-      'reason': reason,
-      'elapsed_ms': now.difference(startedAt).inMilliseconds,
-      'since_ice_ms': now.difference(iceChangedAt).inMilliseconds,
-      'since_pc_ms': now.difference(peerChangedAt).inMilliseconds,
-      'since_gathering_ms': now.difference(gatheringChangedAt).inMilliseconds,
-      'ice': _iceConnectionState.name,
-      'connection': _connectionStateValue.value.name,
-      'gathering': _iceGatheringState.name,
-      'signaling': _signalingState.name,
-      'ice_policy': _rtcConfiguration?['iceTransportPolicy']?.toString() ?? '-',
-      'pair_states': pairStates,
-      'selected_pair': selectedPairState ?? '-',
-      'selected_writable': selectedWritable ?? '-',
-      'selected_nominated': selectedNominated ?? '-',
-      'selected_rtt_ms': selectedRttMs ?? '-',
-      'selected_requests_sent': selectedRequestsSent ?? '-',
-      'selected_responses_received': selectedResponsesReceived ?? '-',
-      'available_outgoing_bitrate': availableOutgoingBitrate ?? '-',
-      'local_candidate': localCandidate ?? '-',
-      'remote_candidate': remoteCandidate ?? '-',
-      'local_candidate_types': localCandidateTypes,
-      'remote_candidate_types': remoteCandidateTypes,
-      'local_candidate_events': _localIceCandidateEvents,
-      'remote_candidate_events': _remoteIceCandidateEvents,
-      'local_relay_events': _localRelayIceCandidateEvents,
-      'remote_relay_events': _remoteRelayIceCandidateEvents,
-      'out_audio_bytes': outboundAudioBytes,
-      'out_audio_packets': outboundAudioPackets,
-      'in_audio_bytes': inboundAudioBytes,
-      'in_audio_packets': inboundAudioPackets,
-      'in_audio_lost': inboundAudioLost,
-    };
-
-    if (_rtcConfiguration?['iceTransportPolicy'] == 'relay' &&
-        _iceGatheringState ==
-            RTCIceGatheringState.RTCIceGatheringStateComplete &&
-        _localRelayIceCandidateEvents == 0 &&
-        !_emittedRelayGatheringWarning) {
-      _emittedRelayGatheringWarning = true;
-      _log.warn(
-        'relay-only ICE completed without local relay candidates',
-        data: data,
-      );
-    }
-
-    return data;
-  }
-
-  Map<String, dynamic> _compactIceDebugSnapshot(Map<String, dynamic> data) {
-    return {
-      'r': data['reason'],
-      't': data['elapsed_ms'],
-      'ice': data['ice'],
-      'pc': data['connection'],
-      'g': data['gathering'],
-      'sig': data['signaling'],
-      'policy': data['ice_policy'],
-      'pair': data['selected_pair'],
-      'wr': data['selected_writable'],
-      'nom': data['selected_nominated'],
-      'rtt': data['selected_rtt_ms'],
-      'checks':
-          '${data['selected_requests_sent']}/${data['selected_responses_received']}',
-      'br': data['available_outgoing_bitrate'],
-      'local': data['local_candidate'],
-      'remote': data['remote_candidate'],
-      'pairs': data['pair_states'],
-      'types':
-          'L${data['local_candidate_types']} R${data['remote_candidate_types']}',
-      'events':
-          'L${data['local_candidate_events']}/R${data['remote_candidate_events']} relay L${data['local_relay_events']}/R${data['remote_relay_events']}',
-      'audio':
-          'out ${data['out_audio_bytes']}/${data['out_audio_packets']} in ${data['in_audio_bytes']}/${data['in_audio_packets']} lost ${data['in_audio_lost']}',
-    };
-  }
-
-  String? _formatMillis(double? seconds) {
-    if (seconds == null) return null;
-    return (seconds * 1000).toStringAsFixed(0);
-  }
-
   Future<void> _checkInboundStats() async {
     final peerConnection = _peerConnection;
     if (_disposed || peerConnection == null) return;
@@ -1085,7 +827,6 @@ class WebRtcSfuService {
           bypassCache: true,
         );
         _rtcConfiguration = relayConfig;
-        _emittedRelayGatheringWarning = false;
         _logRtcConfiguration(relayConfig);
         unawaited(_warmupTurn(relayConfig));
         await native.switchToRelay(configuration: relayConfig, reason: reason);
@@ -1111,7 +852,6 @@ class WebRtcSfuService {
         bypassCache: true,
       );
       _rtcConfiguration = relayConfig;
-      _emittedRelayGatheringWarning = false;
       _logRtcConfiguration(relayConfig);
       await peerConnection.setConfiguration(relayConfig);
       unawaited(_warmupTurn(relayConfig));
@@ -1123,9 +863,100 @@ class WebRtcSfuService {
     }
   }
 
+  Future<void> _handleRemoteTrackEvent(RTCTrackEvent event) async {
+    final trackKind = event.track.kind;
+    _log.info(
+      'remote track received',
+      data: {
+        'kind': trackKind,
+        'track_id': event.track.id,
+        'stream_ids': event.streams.map((s) => s.id).toList(),
+      },
+    );
+    final trackId = event.track.id;
+    if (trackId != null) {
+      _seenRemoteTrackIds.add(trackId);
+    }
+    if (trackKind == 'audio') {
+      event.track.enabled = true;
+      if (trackId != null) {
+        if (_expectedRemoteTrackIds.isNotEmpty &&
+            !_expectedRemoteTrackIds.contains(trackId)) {
+          _log.debug(
+            'accepting remote audio track before participant snapshot catches up',
+            data: {'track_id': trackId},
+          );
+        }
+        final previousTrack = _remoteAudioTracksById[trackId];
+        if (previousTrack != null && previousTrack != event.track) {
+          await _stopTrackQuietly(previousTrack);
+        }
+        _remoteAudioTracksById[trackId] = event.track;
+        event.track.onEnded = () => _removeRemoteAudioTrack(trackId);
+      }
+      _syncRemoteAudioTrackCount();
+      try {
+        await Helper.setVolume(1.0, event.track);
+      } catch (e) {
+        _log.warn('failed to set remote audio volume', data: e.toString());
+      }
+    } else if (trackKind == 'video') {
+      event.track.enabled = true;
+      if (trackId != null) {
+        if (_expectedRemoteTrackIds.isNotEmpty &&
+            !_expectedRemoteTrackIds.contains(trackId)) {
+          _log.debug(
+            'accepting remote video track before participant snapshot catches up',
+            data: {'track_id': trackId},
+          );
+        }
+        final stream = await _streamForRemoteVideo(event, trackId);
+        await _addRemoteVideoTrack(
+          RemoteVideoTrack(
+            userId: _userIdFromRemoteTrackId(trackId),
+            trackId: trackId,
+            stream: stream.stream,
+            track: event.track,
+            ownsStream: stream.ownsStream,
+          ),
+        );
+        event.track.onEnded = () => _removeRemoteVideoTrack(trackId);
+      }
+    }
+    _onTrackController.add(event);
+  }
+
+  Future<void> _handleRenegotiationNeeded() async {
+    try {
+      if (_hasRemoteDescription) {
+        _log.debug(
+          'ignoring local renegotiation-needed after SFU negotiation started',
+        );
+        return;
+      }
+      await _negotiate("renegotiation-needed");
+    } catch (e, stackTrace) {
+      _log.error(
+        'renegotiation-needed handler failed',
+        error: e,
+        data: {'stack': stackTrace.toString()},
+      );
+    }
+  }
+
   Future<void> _negotiate(String reason) async {
     final peerConnection = _peerConnection;
     if (peerConnection == null) return;
+
+    if (_hasRemoteDescription &&
+        (reason.startsWith('sfu-joined') ||
+            reason.startsWith('renegotiation-needed'))) {
+      _log.debug(
+        'skipping client offer because SFU negotiation is already active',
+        data: {'reason': reason},
+      );
+      return;
+    }
 
     if (sessionId == null) {
       _log.debug(
@@ -1513,13 +1344,10 @@ class WebRtcSfuService {
   Future<void> handleSfuIceCandidate(
     Map<String, dynamic>? candidateData,
   ) async {
-     if (_webRtcIceMode == _iceModeDirectOnly && candidateData != null) {
+    if (_webRtcIceMode == _iceModeDirectOnly && candidateData != null) {
       final raw = candidateData['candidate'];
-      if (raw is String &&
-          raw.isNotEmpty &&
-          _rawIceCandidateLogData(raw)['type'] == 'relay') {
-            _log.debug('ignoring remote relay candidate in direct-only mode');
-            return;
+      if (raw is String && raw.contains(' typ relay ')) {
+        return;
       }
     }
 
@@ -1531,8 +1359,6 @@ class WebRtcSfuService {
 
     try {
       if (candidateData == null) {
-        // End of candidates
-        _log.debug('received remote end-of-candidates');
         return;
       }
 
@@ -1541,28 +1367,12 @@ class WebRtcSfuService {
         candidateData['sdpMid'],
         candidateData['sdpMLineIndex'],
       );
-      final raw = candidateData['candidate'];
-      if (raw is String && raw.isNotEmpty) {
-        _remoteIceCandidateEvents += 1;
-        final summary = _rawIceCandidateLogData(
-          raw,
-          sdpMid: candidateData['sdpMid'],
-          sdpMLineIndex: candidateData['sdpMLineIndex'],
-        );
-        if (summary['type'] == 'relay') {
-          _remoteRelayIceCandidateEvents += 1;
-        }
-        _log.debug('remote ICE candidate received', data: summary);
-      }
-
       if (!_hasRemoteDescription) {
         _pendingRemoteCandidates.add(candidate);
-        _log.debug('queued remote ICE candidate until remote description');
         return;
       }
 
       await _peerConnection!.addCandidate(candidate);
-      _log.debug('added remote ICE candidate');
     } catch (e) {
       if (!_ignoreOffer) {
         rethrow;
@@ -1578,10 +1388,6 @@ class WebRtcSfuService {
     for (final candidate in candidates) {
       await _peerConnection!.addCandidate(candidate);
     }
-    _log.debug(
-      'flushed remote ICE candidates',
-      data: {'count': candidates.length},
-    );
   }
 
   void handleSfuJoined(String sid) {
@@ -1597,10 +1403,20 @@ class WebRtcSfuService {
 
     final native = _nativeAndroid;
     if (native != null) {
+      if (_hasRemoteDescription) {
+        _log.debug(
+          'joined native SFU after remote description; waiting for SFU offer',
+        );
+        return;
+      }
       unawaited(native.startOffer('sfu-joined'));
       return;
     }
 
+    if (_hasRemoteDescription) {
+      _log.debug('joined SFU after remote description; waiting for SFU offer');
+      return;
+    }
     unawaited(_negotiate("sfu-joined"));
   }
 
@@ -1737,6 +1553,67 @@ class WebRtcSfuService {
     _syncRemoteAudioTrackCount();
   }
 
+  Future<({MediaStream stream, bool ownsStream})> _streamForRemoteVideo(
+    RTCTrackEvent event,
+    String trackId,
+  ) async {
+    if (event.streams.isNotEmpty) {
+      return (stream: event.streams.first, ownsStream: false);
+    }
+    final stream = await createLocalMediaStream('remote-video-$trackId');
+    await stream.addTrack(event.track);
+    return (stream: stream, ownsStream: true);
+  }
+
+  String _userIdFromRemoteTrackId(String trackId) {
+    final separator = trackId.indexOf(':');
+    if (separator > 0) return trackId.substring(0, separator);
+    return trackId;
+  }
+
+  Future<void> _addRemoteVideoTrack(RemoteVideoTrack remoteTrack) async {
+    final previous = _remoteVideoTracksById[remoteTrack.trackId];
+    if (previous != null && previous.track != remoteTrack.track) {
+      await _disposeRemoteVideoTrack(previous, stopTrack: true);
+    } else if (previous != null && previous.stream == remoteTrack.stream) {
+      return;
+    }
+    _remoteVideoTracksById[remoteTrack.trackId] = remoteTrack;
+    _syncRemoteVideoTracks();
+  }
+
+  void _removeRemoteVideoTrack(String trackId) {
+    if (_disposed) return;
+    final track = _remoteVideoTracksById.remove(trackId);
+    if (track != null) {
+      unawaited(_disposeRemoteVideoTrack(track, stopTrack: false));
+      _syncRemoteVideoTracks();
+    }
+  }
+
+  Future<void> _disposeRemoteVideoTrack(
+    RemoteVideoTrack remoteTrack, {
+    required bool stopTrack,
+  }) async {
+    if (stopTrack) {
+      await _stopTrackQuietly(remoteTrack.track);
+    }
+    if (remoteTrack.ownsStream) {
+      try {
+        await remoteTrack.stream.dispose().timeout(_rtcCleanupTimeout);
+      } catch (e) {
+        _log.warn('failed to dispose remote video stream', data: e.toString());
+      }
+    }
+  }
+
+  void _syncRemoteVideoTracks() {
+    if (_disposed) return;
+    final tracks = _remoteVideoTracksById.values.toList()
+      ..sort((a, b) => a.trackId.compareTo(b.trackId));
+    _remoteVideoTracks.value = List<RemoteVideoTrack>.unmodifiable(tracks);
+  }
+
   void _syncRemoteAudioTrackCount() {
     if (_disposed) return;
     final expectedCount = !_hasRtcParticipantSnapshot
@@ -1761,10 +1638,20 @@ class WebRtcSfuService {
         unawaited(_stopTrackQuietly(track));
       }
     }
+    final staleVideoIds = _remoteVideoTracksById.keys
+        .where((trackId) => !_expectedRemoteTrackIds.contains(trackId))
+        .toList();
+    for (final trackId in staleVideoIds) {
+      final track = _remoteVideoTracksById.remove(trackId);
+      if (track != null) {
+        unawaited(_disposeRemoteVideoTrack(track, stopTrack: true));
+      }
+    }
     _seenRemoteTrackIds.removeWhere(
       (trackId) => !_expectedRemoteTrackIds.contains(trackId),
     );
     _syncRemoteAudioTrackCount();
+    _syncRemoteVideoTracks();
   }
 
   Future<void> addTrack(MediaStreamTrack track, MediaStream stream) async {
@@ -1805,8 +1692,10 @@ class WebRtcSfuService {
       'audio output': _audioOutput.value,
       'relay fallback': _relayFallbackUsed ? 'used' : 'not used',
       'remote audio': _remoteAudioTrackCount.value.toString(),
+      'remote video': _remoteVideoTracks.value.length.toString(),
       'expected tracks': _expectedRemoteTrackIds.length.toString(),
-      'tracked remote': _remoteAudioTracksById.length.toString(),
+      'tracked remote':
+          '${_remoteAudioTracksById.length} audio / ${_remoteVideoTracksById.length} video',
       'participants': _participants.value.length.toString(),
       'local tracks': (_localStream?.getTracks().length ?? 0).toString(),
     };
@@ -1954,43 +1843,6 @@ class WebRtcSfuService {
     return [?type, ?protocol, ?address, ?port].join(' ');
   }
 
-  Map<String, dynamic> _iceCandidateLogData(RTCIceCandidate candidate) {
-    return _rawIceCandidateLogData(
-      candidate.candidate ?? '',
-      sdpMid: candidate.sdpMid,
-      sdpMLineIndex: candidate.sdpMLineIndex,
-    );
-  }
-
-  Map<String, dynamic> _rawIceCandidateLogData(
-    String raw, {
-    Object? sdpMid,
-    Object? sdpMLineIndex,
-  }) {
-    if (raw.isEmpty) {
-      return {'mid': sdpMid, 'mLine': sdpMLineIndex, 'candidate': 'end'};
-    }
-
-    final parts = raw.trim().split(RegExp(r'\s+'));
-    String? valueAfter(String token) {
-      final index = parts.indexOf(token);
-      if (index == -1 || index + 1 >= parts.length) return null;
-      return parts[index + 1];
-    }
-
-    return {
-      'mid': sdpMid,
-      'mLine': sdpMLineIndex,
-      'type': valueAfter('typ') ?? '-',
-      'protocol': parts.length > 2 ? parts[2] : '-',
-      'address': parts.length > 4 ? parts[4] : '-',
-      'port': parts.length > 5 ? parts[5] : '-',
-      'related_address': valueAfter('raddr') ?? '-',
-      'related_port': valueAfter('rport') ?? '-',
-      'candidate_len': raw.length,
-    };
-  }
-
   /// Sends the current media state (e.g., mute status) to the server.
   void sendMediaState(Map<String, dynamic> state) {
     transport.sfuSendMediaState(roomId, state);
@@ -2045,7 +1897,6 @@ class WebRtcSfuService {
     _negotiationRetryTimer = null;
     _iceRestartController.dispose();
     _stopInboundStatsWatch();
-    _stopIceDebugTimeline();
     final native = _nativeAndroid;
     _nativeAndroid = null;
     if (native != null) {
@@ -2061,6 +1912,7 @@ class WebRtcSfuService {
       _participants.dispose();
       _activeSpeakers.dispose();
       _remoteAudioTrackCount.dispose();
+      _remoteVideoTracks.dispose();
       _mediaDevices.dispose();
       _selectedAudioInputId.dispose();
       _selectedVideoInputId.dispose();
@@ -2090,6 +1942,7 @@ class WebRtcSfuService {
     _participants.dispose();
     _activeSpeakers.dispose();
     _remoteAudioTrackCount.dispose();
+    _remoteVideoTracks.dispose();
     _mediaDevices.dispose();
     _selectedAudioInputId.dispose();
     _selectedVideoInputId.dispose();
@@ -2135,11 +1988,19 @@ class WebRtcSfuService {
 
   Future<void> _disposeRemoteTracks() async {
     final tracks = List<MediaStreamTrack>.from(_remoteAudioTracksById.values);
+    final videoTracks = List<RemoteVideoTrack>.from(
+      _remoteVideoTracksById.values,
+    );
     _remoteAudioTracksById.clear();
+    _remoteVideoTracksById.clear();
     _seenRemoteTrackIds.clear();
     _remoteAudioTrackCount.value = 0;
+    _remoteVideoTracks.value = const <RemoteVideoTrack>[];
     for (final track in tracks) {
       await _stopTrackQuietly(track);
+    }
+    for (final track in videoTracks) {
+      await _disposeRemoteVideoTrack(track, stopTrack: true);
     }
   }
 

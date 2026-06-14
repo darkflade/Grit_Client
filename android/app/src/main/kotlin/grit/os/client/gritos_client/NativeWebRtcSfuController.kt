@@ -24,7 +24,6 @@ import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 import org.webrtc.audio.JavaAudioDeviceModule
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.math.roundToLong
 
 class NativeWebRtcSfuController(
     private val context: Context,
@@ -60,20 +59,6 @@ class NativeWebRtcSfuController(
     private var lastIceStateChangedAtMs = 0L
     private var lastConnectionStateChangedAtMs = 0L
     private var lastGatheringStateChangedAtMs = 0L
-    private var localCandidateCount = 0
-    private var remoteCandidateCount = 0
-    private var localRelayCandidateCount = 0
-    private var remoteRelayCandidateCount = 0
-    private var emittedRelayGatheringWarning = false
-    private var lastIceTimelineFingerprint: String? = null
-    private val iceTimelineRunnable = object : Runnable {
-        override fun run() {
-            emitIceTimeline("periodic")
-            if (peerConnection != null) {
-                mainHandler.postDelayed(this, 1000)
-            }
-        }
-    }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         runOnMain {
@@ -109,7 +94,6 @@ class NativeWebRtcSfuController(
         hasRemoteDescription = false
         makingOffer = false
         relayFallbackUsed = false
-        stopIceTimeline()
         peerConnection?.close()
         peerConnection?.dispose()
         peerConnection = null
@@ -137,12 +121,6 @@ class NativeWebRtcSfuController(
         lastIceStateChangedAtMs = createdAtMs
         lastConnectionStateChangedAtMs = createdAtMs
         lastGatheringStateChangedAtMs = createdAtMs
-        localCandidateCount = 0
-        remoteCandidateCount = 0
-        localRelayCandidateCount = 0
-        remoteRelayCandidateCount = 0
-        emittedRelayGatheringWarning = false
-        lastIceTimelineFingerprint = null
 
         val pc = requireNotNull(factory).createPeerConnection(
             parseRtcConfiguration(configuration),
@@ -183,7 +161,6 @@ class NativeWebRtcSfuController(
         emit("onLog", mapOf("level" to "info", "message" to "native Android PeerConnection created"))
         emit("onLog", iceConfigLogData(configuration))
         warnIfNoUsableRelay(configuration, currentIcePolicy)
-        startIceTimeline()
         result.success(null)
     }
 
@@ -310,7 +287,6 @@ class NativeWebRtcSfuController(
 
     private fun addIceCandidate(candidate: Map<String, Any?>?, result: MethodChannel.Result) {
         if (candidate == null) {
-            emit("onLog", mapOf("level" to "debug", "message" to "native received remote end-of-candidates"))
             result.success(null)
             return
         }
@@ -319,24 +295,8 @@ class NativeWebRtcSfuController(
             (candidate["sdpMLineIndex"] as? Number)?.toInt() ?: 0,
             candidate["candidate"] as? String ?: "",
         )
-        val summary = summarizeCandidateSdp(ice.sdp)
-        remoteCandidateCount += 1
-        if (summary["type"] == "relay") {
-            remoteRelayCandidateCount += 1
-        }
-        emit(
-            "onLog",
-            mapOf(
-                "level" to "debug",
-                "message" to "native remote ICE candidate",
-                "elapsed_ms" to elapsedMs(),
-                "mid" to ice.sdpMid,
-                "mLine" to ice.sdpMLineIndex,
-            ) + summary,
-        )
         if (!hasRemoteDescription) {
             pendingRemoteCandidates.add(ice)
-            emit("onLog", mapOf("level" to "debug", "message" to "native queued remote ICE candidate"))
             result.success(null)
             return
         }
@@ -353,9 +313,6 @@ class NativeWebRtcSfuController(
         pendingRemoteCandidates.clear()
         for (candidate in candidates) {
             pc.addIceCandidate(candidate)
-        }
-        if (candidates.isNotEmpty()) {
-            emit("onLog", mapOf("level" to "debug", "message" to "native flushed remote ICE candidates", "count" to candidates.size))
         }
     }
 
@@ -400,7 +357,6 @@ class NativeWebRtcSfuController(
         )
         relayFallbackUsed = true
         currentIcePolicy = "relay"
-        emittedRelayGatheringWarning = false
         warnIfNoUsableRelay(configuration, "relay")
         pc.setConfiguration(parseRtcConfiguration(configuration + mapOf("iceTransportPolicy" to "relay")))
         pc.restartIce()
@@ -515,57 +471,26 @@ class NativeWebRtcSfuController(
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState) {
                 lastIceState = iceConnectionStateString(state)
                 lastIceStateChangedAtMs = nowMs()
-                emitIceTimeline("ice-state-$lastIceState")
                 emit("onIceConnectionState", mapOf("state" to lastIceState))
             }
 
             override fun onConnectionChange(state: PeerConnection.PeerConnectionState) {
                 lastConnectionState = connectionStateString(state)
                 lastConnectionStateChangedAtMs = nowMs()
-                emitIceTimeline("pc-state-$lastConnectionState")
                 emit("onConnectionState", mapOf("state" to lastConnectionState))
             }
 
             override fun onIceGatheringChange(state: PeerConnection.IceGatheringState) {
                 lastGatheringState = iceGatheringStateString(state)
                 lastGatheringStateChangedAtMs = nowMs()
-                emitIceTimeline("gathering-$lastGatheringState")
                 emit("onIceGatheringState", mapOf("state" to lastGatheringState))
                 if (state == PeerConnection.IceGatheringState.COMPLETE) {
-                    if (currentIcePolicy == "relay" && localRelayCandidateCount == 0 && !emittedRelayGatheringWarning) {
-                        emittedRelayGatheringWarning = true
-                        emit(
-                            "onLog",
-                            mapOf(
-                                "level" to "warn",
-                                "message" to "native relay-only gathering completed without relay candidates",
-                                "elapsed_ms" to elapsedMs(),
-                                "local_candidates" to localCandidateCount,
-                                "remote_candidates" to remoteCandidateCount,
-                            ),
-                        )
-                    }
                     emit("onIceCandidate", null)
                 }
             }
 
             override fun onIceCandidate(candidate: IceCandidate) {
-                val summary = summarizeCandidateSdp(candidate.sdp)
-                localCandidateCount += 1
-                if (summary["type"] == "relay") {
-                    localRelayCandidateCount += 1
-                }
                 localCandidate = "mid:${candidate.sdpMid}, index:${candidate.sdpMLineIndex}, ${candidate.sdp.take(15)}..."
-                emit(
-                    "onLog",
-                    mapOf(
-                        "level" to "debug",
-                        "message" to "native local ICE candidate",
-                        "elapsed_ms" to elapsedMs(),
-                        "mid" to candidate.sdpMid,
-                        "mLine" to candidate.sdpMLineIndex,
-                    ) + summary,
-                )
                 emit(
                     "onIceCandidate",
                     mapOf(
@@ -678,172 +603,6 @@ class NativeWebRtcSfuController(
         }
     }
 
-    private fun startIceTimeline() {
-        mainHandler.removeCallbacks(iceTimelineRunnable)
-        mainHandler.postDelayed(iceTimelineRunnable, 1000)
-    }
-
-    private fun stopIceTimeline() {
-        mainHandler.removeCallbacks(iceTimelineRunnable)
-    }
-
-    private fun emitIceTimeline(reason: String) {
-        val pc = peerConnection ?: return
-        pc.getStats(object : RTCStatsCollectorCallback {
-            override fun onStatsDelivered(report: RTCStatsReport) {
-                val data = buildIceTimeline(reason, report)
-                val fingerprint = listOf(
-                    data["reason"],
-                    data["ice"],
-                    data["connection"],
-                    data["gathering"],
-                    data["selected_pair"],
-                    data["local_candidate"],
-                    data["remote_candidate"],
-                    data["pair_states"],
-                    data["local_candidate_types"],
-                    data["remote_candidate_types"],
-                    data["out_audio_bytes"],
-                    data["in_audio_bytes"],
-                ).joinToString("|")
-                if (fingerprint != lastIceTimelineFingerprint || reason != "periodic") {
-                    lastIceTimelineFingerprint = fingerprint
-                    emit("onLog", data)
-                }
-            }
-        })
-    }
-
-    private fun buildIceTimeline(reason: String, report: RTCStatsReport): Map<String, Any> {
-        val now = nowMs()
-        val candidateTypesById = mutableMapOf<String, String>()
-        val localCandidateTypeCounts = mutableMapOf<String, Int>()
-        val remoteCandidateTypeCounts = mutableMapOf<String, Int>()
-        val pairStateCounts = mutableMapOf<String, Int>()
-        var selectedLocalId: String? = null
-        var selectedRemoteId: String? = null
-        var selectedState = "-"
-        var selectedWritable = "-"
-        var selectedNominated = "-"
-        var selectedRttMs = "-"
-        var selectedRequestsSent = "-"
-        var selectedResponsesReceived = "-"
-        var availableOutgoingBitrate = "-"
-        var inboundAudioBytes = 0L
-        var outboundAudioBytes = 0L
-        var inboundAudioPackets = 0L
-        var outboundAudioPackets = 0L
-        var inboundAudioLost = 0L
-
-        for ((id, stats) in report.statsMap) {
-            val members = stats.members
-            when (stats.type) {
-                "local-candidate", "remote-candidate" -> {
-                    val candidateType = members["candidateType"]?.toString()
-                        ?: members["type"]?.toString()
-                        ?: "unknown"
-                    candidateTypesById[id] = candidateType
-                    val target = if (stats.type == "local-candidate") localCandidateTypeCounts else remoteCandidateTypeCounts
-                    target[candidateType] = (target[candidateType] ?: 0) + 1
-                }
-                "candidate-pair" -> {
-                    val state = members["state"]?.toString() ?: "unknown"
-                    pairStateCounts[state] = (pairStateCounts[state] ?: 0) + 1
-                    val selected = members["selected"] == true || members["nominated"] == true
-                    if (selected) {
-                        selectedState = state
-                        selectedLocalId = members["localCandidateId"] as? String
-                        selectedRemoteId = members["remoteCandidateId"] as? String
-                        selectedWritable = members["writable"]?.toString() ?: "-"
-                        selectedNominated = members["nominated"]?.toString() ?: "-"
-                        selectedRttMs = numberMs(members["currentRoundTripTime"] ?: members["totalRoundTripTime"])
-                        selectedRequestsSent = members["requestsSent"]?.toString() ?: "-"
-                        selectedResponsesReceived = members["responsesReceived"]?.toString() ?: "-"
-                        availableOutgoingBitrate = (members["availableOutgoingBitrate"] as? Number)
-                            ?.toDouble()
-                            ?.let { "${(it / 1000.0).roundToLong()} kbps" }
-                            ?: availableOutgoingBitrate
-                    }
-                }
-                "inbound-rtp" -> if (members["kind"] == "audio") {
-                    inboundAudioBytes += (members["bytesReceived"] as? Number)?.toLong() ?: 0L
-                    inboundAudioPackets += (members["packetsReceived"] as? Number)?.toLong() ?: 0L
-                    inboundAudioLost += (members["packetsLost"] as? Number)?.toLong() ?: 0L
-                }
-                "outbound-rtp" -> if (members["kind"] == "audio") {
-                    outboundAudioBytes += (members["bytesSent"] as? Number)?.toLong() ?: 0L
-                    outboundAudioPackets += (members["packetsSent"] as? Number)?.toLong() ?: 0L
-                }
-            }
-        }
-
-        val selectedLocal = selectedLocalId?.let { candidateSummary(report, it) } ?: "-"
-        val selectedRemote = selectedRemoteId?.let { candidateSummary(report, it) } ?: "-"
-        return mapOf(
-            "level" to "debug",
-            "message" to "native ICE timeline",
-            "reason" to reason,
-            "elapsed_ms" to (now - createdAtMs),
-            "since_ice_ms" to (now - lastIceStateChangedAtMs),
-            "since_pc_ms" to (now - lastConnectionStateChangedAtMs),
-            "since_gathering_ms" to (now - lastGatheringStateChangedAtMs),
-            "ice" to lastIceState,
-            "connection" to lastConnectionState,
-            "gathering" to lastGatheringState,
-            "signaling" to lastSignalingState,
-            "ice_policy" to currentIcePolicy,
-            "pair_states" to pairStateCounts,
-            "selected_pair" to selectedState,
-            "selected_writable" to selectedWritable,
-            "selected_nominated" to selectedNominated,
-            "selected_rtt_ms" to selectedRttMs,
-            "selected_requests_sent" to selectedRequestsSent,
-            "selected_responses_received" to selectedResponsesReceived,
-            "available_outgoing_bitrate" to availableOutgoingBitrate,
-            "local_candidate" to selectedLocal,
-            "remote_candidate" to selectedRemote,
-            "local_candidate_types" to localCandidateTypeCounts,
-            "remote_candidate_types" to remoteCandidateTypeCounts,
-            "local_candidate_events" to localCandidateCount,
-            "remote_candidate_events" to remoteCandidateCount,
-            "local_relay_events" to localRelayCandidateCount,
-            "remote_relay_events" to remoteRelayCandidateCount,
-            "out_audio_bytes" to outboundAudioBytes,
-            "out_audio_packets" to outboundAudioPackets,
-            "in_audio_bytes" to inboundAudioBytes,
-            "in_audio_packets" to inboundAudioPackets,
-            "in_audio_lost" to inboundAudioLost,
-        )
-    }
-
-    private fun candidateSummary(report: RTCStatsReport, id: String): String {
-        val stats = report.statsMap[id] ?: return id
-        val members = stats.members
-        val type = members["candidateType"] ?: members["type"] ?: "unknown"
-        val proto = members["protocol"] ?: "unknown"
-        val address = members["ip"] ?: members["address"] ?: "unknown"
-        val port = members["port"] ?: "unknown"
-        val url = members["url"]?.toString()?.takeIf { it.isNotBlank() }
-        return listOfNotNull(type, proto, "$address:$port", url).joinToString(" ")
-    }
-
-    private fun summarizeCandidateSdp(candidate: String): Map<String, Any> {
-        val parts = candidate.trim().split(Regex("\\s+"))
-        fun valueAfter(token: String): String? {
-            val index = parts.indexOf(token)
-            return if (index >= 0 && index + 1 < parts.size) parts[index + 1] else null
-        }
-        return mapOf(
-            "type" to (valueAfter("typ") ?: "-"),
-            "protocol" to (parts.getOrNull(2) ?: "-"),
-            "address" to (parts.getOrNull(4) ?: "-"),
-            "port" to (parts.getOrNull(5) ?: "-"),
-            "related_address" to (valueAfter("raddr") ?: "-"),
-            "related_port" to (valueAfter("rport") ?: "-"),
-            "candidate_len" to candidate.length,
-        )
-    }
-
     private fun iceConfigLogData(configuration: Map<String, Any?>): Map<String, Any> {
         val servers = configuration["iceServers"] as? List<*> ?: emptyList<Any>()
         val summaries = servers.mapNotNull { raw ->
@@ -920,11 +679,6 @@ class NativeWebRtcSfuController(
                 ) + diagnostics,
             )
         }
-    }
-
-    private fun numberMs(value: Any?): String {
-        val seconds = (value as? Number)?.toDouble() ?: return "-"
-        return "${(seconds * 1000.0).roundToLong()}"
     }
 
     private fun nowMs(): Long = System.currentTimeMillis()

@@ -28,24 +28,12 @@ class AppLogger {
     _write(LogLevel.debug, message, data: data);
   }
 
-  void debugLong(String message, {Object? data}) {
-    _write(LogLevel.debug, message, data: data, truncateData: false);
-  }
-
   void info(String message, {Object? data}) {
     _write(LogLevel.info, message, data: data);
   }
 
-  void infoLong(String message, {Object? data}) {
-    _write(LogLevel.info, message, data: data, truncateData: false);
-  }
-
   void warn(String message, {Object? data}) {
     _write(LogLevel.warn, message, data: data);
-  }
-
-  void warnLong(String message, {Object? data}) {
-    _write(LogLevel.warn, message, data: data, truncateData: false);
   }
 
   void error(
@@ -71,14 +59,11 @@ class AppLogger {
     Object? data,
     Object? error,
     StackTrace? stackTrace,
-    bool truncateData = true,
   }) {
     final now = DateTime.now().toIso8601String();
     final buffer = StringBuffer('[$now] ${level.label} $scope | $message');
     if (data != null) {
-      buffer.write(
-        ' | data=${truncateData ? _formatData(data) : _formatDataFull(data)}',
-      );
+      buffer.write(' | data=${_formatData(data)}');
     }
     if (error != null) {
       buffer.write(' | error=$error');
@@ -149,13 +134,6 @@ class AppLogger {
       return _truncate(jsonEncode(data));
     }
     return _truncate(data.toString());
-  }
-
-  static String _formatDataFull(Object data) {
-    if (data is Map || data is Iterable) {
-      return jsonEncode(data);
-    }
-    return data.toString();
   }
 
   static void _printChunks(LogLevel level, String line) {

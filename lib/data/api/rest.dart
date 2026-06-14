@@ -2,7 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import '../models/friend_request.dart';
@@ -32,6 +34,7 @@ class ApiClient {
   final Dio dio;
   String baseUrl;
   late final CookieJar cookieJar;
+  void Function(ApiRequestError error)? onRequestError;
 
   final Map<String, Uint8List> _fileCache = {};
   final Map<String, Map<String, dynamic>> _metadataCache = {};
@@ -41,7 +44,7 @@ class ApiClient {
       baseUrl = normalizeApiBaseUrl(baseUrl ?? defaultApiBaseUrl) {
     cookieJar = CookieJar();
     dio.interceptors.add(CookieManager(cookieJar));
-    dio.interceptors.add(_RetryInterceptor(dio));
+    dio.interceptors.add(_RetryInterceptor(dio, () => onRequestError));
 
     dio.options.baseUrl = this.baseUrl;
     dio.options.connectTimeout = const Duration(seconds: 8);
@@ -716,14 +719,7 @@ class ApiClient {
   }
 
   Future<Uint8List?> getFileBytes(String url) async {
-    String fullUrl = url;
-    if (!url.startsWith("http")) {
-      final cleanUrl = url.startsWith('/') ? url : '/$url';
-      // If it doesn't already contain /api/ but looks like a relative path,
-      // we might need to prepend /api/ if that's where files are served.
-      // But looking at swagger, URLs returned by server already start with /api/files/
-      fullUrl = "$baseUrl$cleanUrl";
-    }
+    final fullUrl = _fullFileUrl(url);
 
     if (_fileCache.containsKey(fullUrl)) return _fileCache[fullUrl];
     try {
@@ -747,11 +743,7 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>?> getFileMetadata(String url) async {
-    String fullUrl = url;
-    if (!url.startsWith("http")) {
-      final cleanUrl = url.startsWith('/') ? url : '/$url';
-      fullUrl = "$baseUrl$cleanUrl";
-    }
+    final fullUrl = _fullFileUrl(url);
 
     if (_metadataCache.containsKey(fullUrl)) return _metadataCache[fullUrl];
     try {
@@ -775,11 +767,7 @@ class ApiClient {
     String savePath, {
     void Function(int count, int total)? onReceiveProgress,
   }) async {
-    String fullUrl = url;
-    if (!url.startsWith("http")) {
-      final cleanUrl = url.startsWith('/') ? url : '/$url';
-      fullUrl = "$baseUrl$cleanUrl";
-    }
+    final fullUrl = _fullFileUrl(url);
 
     try {
       await dio.download(
@@ -792,6 +780,66 @@ class ApiClient {
       rethrow;
     }
   }
+
+  Future<File?> getCachedFile(String url, {String? fileName}) async {
+    final fullUrl = _fullFileUrl(url);
+    final extension = p.extension(
+      fileName?.trim().isNotEmpty == true
+          ? fileName!
+          : Uri.tryParse(fullUrl)?.path ?? '',
+    );
+    final cacheName = '${_stableFileKey(fullUrl)}$extension';
+    final cacheDir = Directory(
+      p.join(Directory.systemTemp.path, 'gritos-files'),
+    );
+    final file = File(p.join(cacheDir.path, cacheName));
+
+    if (await file.exists() && await file.length() > 0) return file;
+
+    try {
+      await cacheDir.create(recursive: true);
+      final response = await dio.get<List<int>>(
+        fullUrl,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      if (response.statusCode == 200 && response.data != null) {
+        final bytes = Uint8List.fromList(response.data!);
+        await file.writeAsBytes(bytes, flush: true);
+        _fileCache[fullUrl] = bytes;
+        _metadataCache[fullUrl] = {
+          'size': bytes.length,
+          'type': response.headers.value('content-type'),
+        };
+        return file;
+      }
+    } catch (e) {
+      debugPrint("Error caching file from $fullUrl: $e");
+    }
+    return null;
+  }
+
+  String _fullFileUrl(String url) {
+    if (url.startsWith("http")) return url;
+    final cleanUrl = url.startsWith('/') ? url : '/$url';
+    return "$baseUrl$cleanUrl";
+  }
+
+  String _stableFileKey(String value) {
+    final bytes = utf8.encode(value);
+    var hash = 0xcbf29ce484222325;
+    for (final byte in bytes) {
+      hash ^= byte;
+      hash = (hash * 0x100000001b3) & 0x7fffffffffffffff;
+    }
+    return hash.toRadixString(16);
+  }
+}
+
+class ApiRequestError {
+  final int? statusCode;
+  final String message;
+
+  const ApiRequestError({required this.statusCode, required this.message});
 }
 
 class _RetryInterceptor extends QueuedInterceptor {
@@ -806,8 +854,9 @@ class _RetryInterceptor extends QueuedInterceptor {
   };
 
   final Dio _dio;
+  final void Function(ApiRequestError error)? Function() _errorHandler;
 
-  _RetryInterceptor(this._dio);
+  _RetryInterceptor(this._dio, this._errorHandler);
 
   @override
   Future<void> onError(
@@ -820,6 +869,7 @@ class _RetryInterceptor extends QueuedInterceptor {
     if (retryCount >= _maxRetries ||
         !_canRetry(request) ||
         !_isTransient(err)) {
+      _emitRequestError(err);
       handler.next(err);
       return;
     }
@@ -831,16 +881,43 @@ class _RetryInterceptor extends QueuedInterceptor {
       final response = await _dio.fetch<dynamic>(request);
       handler.resolve(response);
     } on DioException catch (e) {
+      _emitRequestError(e);
       handler.next(e);
     } catch (e) {
-      handler.next(
-        DioException(
-          requestOptions: request,
-          error: e,
-          type: DioExceptionType.unknown,
-        ),
+      final next = DioException(
+        requestOptions: request,
+        error: e,
+        type: DioExceptionType.unknown,
       );
+      _emitRequestError(next);
+      handler.next(next);
     }
+  }
+
+  void _emitRequestError(DioException err) {
+    final statusCode = err.response?.statusCode;
+    if (statusCode == null || statusCode < 400) return;
+    if (err.requestOptions.extra['error_notice_emitted'] == true) return;
+    err.requestOptions.extra['error_notice_emitted'] = true;
+    _errorHandler()?.call(
+      ApiRequestError(statusCode: statusCode, message: _messageForError(err)),
+    );
+  }
+
+  String _messageForError(DioException err) {
+    final statusCode = err.response?.statusCode;
+    final data = err.response?.data;
+    String? serverMessage;
+    if (data is Map) {
+      serverMessage =
+          data['message']?.toString() ??
+          data['error']?.toString() ??
+          data['detail']?.toString();
+    } else if (data is String && data.trim().isNotEmpty) {
+      serverMessage = data.trim();
+    }
+    final prefix = statusCode == null ? 'Request failed' : 'HTTP $statusCode';
+    return serverMessage == null ? prefix : '$prefix: $serverMessage';
   }
 
   bool _canRetry(RequestOptions request) {
